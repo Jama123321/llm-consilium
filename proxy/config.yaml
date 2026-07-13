@@ -2,16 +2,22 @@
 # Secrets are referenced via os.environ/* and loaded from ~/.config/consilium/.env.
 # The privacy_tier tags are read by the Phase 1 council privacy gate.
 model_list:
-  - model_name: council/cerebras-qwen-235b
+  # Cerebras free catalog drifted from the 2026 audit (qwen-3-235b / llama-3.3-70b
+  # no longer offered); pinned to live ids verified via GET api.cerebras.ai/v1/models.
+  # NOTE on tier: privacy_tier follows the INFERENCE PROVIDER (Cerebras: no-train /
+  # no-retain ToS), not the weights' origin. zai-glm-4.7 runs on Cerebras, so Zhipu
+  # never sees the prompt -> Tier-A. (Tier-B for GLM would apply only to a direct
+  # open.bigmodel.cn call.)
+  - model_name: council/cerebras-glm-4.7
     litellm_params:
-      model: cerebras/qwen-3-235b
+      model: cerebras/zai-glm-4.7
       api_key: os.environ/CEREBRAS_API_KEY
       rpm: 5
     model_info:
       privacy_tier: A
-  - model_name: council/cerebras-llama-70b
+  - model_name: council/cerebras-gpt-oss-120b
     litellm_params:
-      model: cerebras/llama-3.3-70b
+      model: cerebras/gpt-oss-120b
       api_key: os.environ/CEREBRAS_API_KEY
       rpm: 5
     model_info:

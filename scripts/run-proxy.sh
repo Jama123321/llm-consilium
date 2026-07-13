@@ -27,9 +27,14 @@ if [[ -n "${CONSILIUM_CHECK_ONLY:-}" ]]; then
   exit 0
 fi
 
-CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/proxy/config.yaml"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG="$REPO_ROOT/proxy/config.yaml"
 if [[ ! -f "$CONFIG" ]]; then
   echo "ERROR: proxy config not found: $CONFIG" >&2
   exit 1
 fi
-exec litellm --config "$CONFIG" --host 127.0.0.1 --port 4000
+
+# Prefer the project venv's litellm; fall back to one on PATH.
+LITELLM_BIN="$REPO_ROOT/.venv/bin/litellm"
+[[ -x "$LITELLM_BIN" ]] || LITELLM_BIN="litellm"
+exec "$LITELLM_BIN" --config "$CONFIG" --host 127.0.0.1 --port 4000
