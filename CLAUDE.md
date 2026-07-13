@@ -51,7 +51,7 @@ LiteLLM config shape, council pattern): **`docs/research/free-llm-consilium-audi
 
 ## Stack (planned)
 
-- **Python 3.11+** (LiteLLM + MCP are Python-native), `asyncio`/`httpx` for the
+- **Python 3.10+** (LiteLLM + MCP are Python-native), `asyncio`/`httpx` for the
   fan-out, `pytest` for tests, `ruff` for lint/format.
 - **LiteLLM** proxy (routing + per-key rate-limit + failover).
 - **MCP Python SDK** for the user-scope `council` tool.
