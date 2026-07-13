@@ -67,6 +67,24 @@ def test_complete_malformed_200_body_raises_member_call_error():
     assert "malformed" in ei.value.detail
 
 
+def test_complete_null_content_raises_member_call_error():
+    body = {"choices": [{"message": {"content": None}}]}
+    with pytest.raises(MemberCallError) as ei:
+        asyncio.run(
+            client.complete("http://x/v1", "k", "council/a", "hi", transport=_transport(200, body))
+        )
+    assert "content" in ei.value.detail
+
+
+def test_complete_empty_content_raises_member_call_error():
+    body = {"choices": [{"message": {"content": "   "}}]}
+    with pytest.raises(MemberCallError) as ei:
+        asyncio.run(
+            client.complete("http://x/v1", "k", "council/a", "hi", transport=_transport(200, body))
+        )
+    assert "content" in ei.value.detail
+
+
 def test_make_caller_binds_base_and_key():
     import functools
 

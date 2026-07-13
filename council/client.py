@@ -14,7 +14,7 @@ async def complete(
     alias: str,
     prompt: str,
     *,
-    max_tokens: int = 512,
+    max_tokens: int = 2048,
     timeout: float = 30.0,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> str:
@@ -39,13 +39,16 @@ async def complete(
         )
         raise MemberCallError(alias, detail)
     try:
-        return resp.json()["choices"][0]["message"]["content"]
+        content = resp.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise MemberCallError(alias, "malformed response body") from exc
+    if not isinstance(content, str) or not content.strip():
+        raise MemberCallError(alias, "empty response content (finish_reason=length?)")
+    return content
 
 
 def make_caller(
-    base_url: str, api_key: str, *, max_tokens: int = 512, timeout: float = 30.0
+    base_url: str, api_key: str, *, max_tokens: int = 2048, timeout: float = 30.0
 ) -> AsyncCaller:
     return functools.partial(
         complete, base_url, api_key, max_tokens=max_tokens, timeout=timeout
