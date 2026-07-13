@@ -1,6 +1,7 @@
 # Consilium LiteLLM proxy — Phase 0 (Tier-A providers only).
 # Secrets are referenced via os.environ/* and loaded from ~/.config/consilium/.env.
-# The privacy_tier tags are read by the Phase 1 council privacy gate.
+# The privacy_tier tags are read by the Phase 1 council privacy gate;
+# capabilities/strength are read by the Phase 1 router and council.
 model_list:
   # Cerebras free catalog drifted from the 2026 audit (qwen-3-235b / llama-3.3-70b
   # no longer offered); pinned to live ids verified via GET api.cerebras.ai/v1/models.
@@ -15,6 +16,8 @@ model_list:
       rpm: 5
     model_info:
       privacy_tier: A
+      strength: 5
+      capabilities: [reasoning, general, code]
   - model_name: council/cerebras-gpt-oss-120b
     litellm_params:
       model: cerebras/gpt-oss-120b
@@ -22,6 +25,8 @@ model_list:
       rpm: 5
     model_info:
       privacy_tier: A
+      strength: 4
+      capabilities: [reasoning, code, general]
   - model_name: council/groq-llama-70b
     litellm_params:
       model: groq/llama-3.3-70b-versatile
@@ -29,6 +34,8 @@ model_list:
       rpm: 30
     model_info:
       privacy_tier: A
+      strength: 3
+      capabilities: [general, fast, code]
   # Groq free tier: does NOT train on prompts (the Tier-A criterion); default keeps
   # 7-day operational logs — full zero-retention needs ZDR (later action, non-blocking).
   - model_name: council/groq-gpt-oss-120b
@@ -38,6 +45,8 @@ model_list:
       rpm: 30
     model_info:
       privacy_tier: A
+      strength: 4
+      capabilities: [reasoning, code, general, fast]
   - model_name: council/cloudflare-llama-70b
     litellm_params:
       model: openai/@cf/meta/llama-3.3-70b-instruct-fp8-fast
@@ -45,6 +54,8 @@ model_list:
       api_key: os.environ/CLOUDFLARE_API_TOKEN
     model_info:
       privacy_tier: A
+      strength: 3
+      capabilities: [general, fast]
 router_settings:
   num_retries: 1
 general_settings:
