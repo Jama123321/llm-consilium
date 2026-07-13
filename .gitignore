@@ -1,0 +1,27 @@
+# Secrets — NEVER commit
+.env
+.env.*
+*.key
+*.pem
+secrets/
+~/.config/consilium/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# LiteLLM / runtime
+*.log
+litellm_uuid.txt
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
