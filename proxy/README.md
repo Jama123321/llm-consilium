@@ -15,6 +15,7 @@ chmod 600 ~/.config/consilium/.env
 ```bash
 bash scripts/run-proxy.sh          # loads the env file, validates, launches on 127.0.0.1:4000
 ```
+This runs in the foreground — leave it running and use a second shell for the health-check below.
 List the registered aliases:
 ```bash
 curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" http://127.0.0.1:4000/v1/models

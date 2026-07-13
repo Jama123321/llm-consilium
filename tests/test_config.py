@@ -11,6 +11,13 @@ EXPECTED_ALIASES = {
     "council/cloudflare-llama-70b",
 }
 
+# Tier-A safety contract: every alias must route to a Tier-A provider prefix.
+# `openai/` is the LiteLLM shim for Cloudflare Workers AI and is Tier-A ONLY
+# because api_base points at Cloudflare — without api_base it would silently
+# route to real OpenAI (Tier-B). These two tests make that invariant
+# regression-proof at the config layer.
+ALLOWED_MODEL_PREFIXES = ("cerebras/", "groq/", "openai/")
+
 
 def _load():
     return yaml.safe_load(CONFIG_PATH.read_text())
@@ -40,3 +47,19 @@ def test_no_literal_secrets():
 def test_master_key_via_env():
     cfg = _load()
     assert cfg["general_settings"]["master_key"] == "os.environ/LITELLM_MASTER_KEY"
+
+
+def test_all_aliases_use_tier_a_provider_prefixes():
+    cfg = _load()
+    for m in cfg["model_list"]:
+        model = m["litellm_params"]["model"]
+        assert model.startswith(ALLOWED_MODEL_PREFIXES), m["model_name"]
+
+
+def test_openai_shim_aliases_pin_api_base():
+    cfg = _load()
+    for m in cfg["model_list"]:
+        params = m["litellm_params"]
+        if params["model"].startswith("openai/"):
+            assert "api_base" in params, m["model_name"]
+            assert params["api_base"].startswith("os.environ/"), m["model_name"]

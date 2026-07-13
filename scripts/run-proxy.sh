@@ -28,4 +28,8 @@ if [[ -n "${CONSILIUM_CHECK_ONLY:-}" ]]; then
 fi
 
 CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/proxy/config.yaml"
+if [[ ! -f "$CONFIG" ]]; then
+  echo "ERROR: proxy config not found: $CONFIG" >&2
+  exit 1
+fi
 exec litellm --config "$CONFIG" --host 127.0.0.1 --port 4000
