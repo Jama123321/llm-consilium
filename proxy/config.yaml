@@ -1,0 +1,45 @@
+# Consilium LiteLLM proxy — Phase 0 (Tier-A providers only).
+# Secrets are referenced via os.environ/* and loaded from ~/.config/consilium/.env.
+# The privacy_tier tags are read by the Phase 1 council privacy gate.
+model_list:
+  - model_name: council/cerebras-qwen-235b
+    litellm_params:
+      model: cerebras/qwen-3-235b
+      api_key: os.environ/CEREBRAS_API_KEY
+      rpm: 5
+    model_info:
+      privacy_tier: A
+  - model_name: council/cerebras-llama-70b
+    litellm_params:
+      model: cerebras/llama-3.3-70b
+      api_key: os.environ/CEREBRAS_API_KEY
+      rpm: 5
+    model_info:
+      privacy_tier: A
+  - model_name: council/groq-llama-70b
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+      rpm: 30
+    model_info:
+      privacy_tier: A
+  # Groq free tier: does NOT train on prompts (the Tier-A criterion); default keeps
+  # 7-day operational logs — full zero-retention needs ZDR (later action, non-blocking).
+  - model_name: council/groq-gpt-oss-120b
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+      rpm: 30
+    model_info:
+      privacy_tier: A
+  - model_name: council/cloudflare-llama-70b
+    litellm_params:
+      model: openai/@cf/meta/llama-3.3-70b-instruct-fp8-fast
+      api_base: os.environ/CLOUDFLARE_API_BASE
+      api_key: os.environ/CLOUDFLARE_API_TOKEN
+    model_info:
+      privacy_tier: A
+router_settings:
+  num_retries: 1
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
