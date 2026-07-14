@@ -67,7 +67,7 @@ llm-consilium/
 ├── README.md
 ├── proxy/                       # LiteLLM config (models, aliases, rpm, privacy_tier)
 ├── council/                     # orchestrator: privacy gate, fan-out, aggregate
-├── mcp/                         # user-scope MCP server exposing the `council` tool
+├── consilium_mcp/               # user-scope MCP server (not `mcp/` — that shadows the SDK)
 ├── scripts/                     # CLI wrapper (`council "question"`), install/service scripts
 ├── tests/
 └── docs/
@@ -125,7 +125,9 @@ identity, no Claude attribution in commits.
 
 ## Status
 
-**Phase 0 not started.** Design basis is the 2026 audit in `docs/research/`. First
-move: brainstorm the **Phase 0 MVP** — LiteLLM proxy + 3 Tier-A providers
-(Cerebras + Groq + Cloudflare) reachable at `localhost:4000/v1`, then a minimal
-council fan-out, then the user-scope MCP tool + the global usage rule.
+**Phase 0 (compute) and Phase 1 (council + MCP) complete.** Phase map:
+- Phase 0 — LiteLLM proxy + 3 Tier-A providers (Cerebras/Groq/Cloudflare). Done.
+- Phase 1 — council orchestrator (`ask`/`council`) + user-scope MCP + usage protocol +
+  rate-limit fallback. Done (sub-waves 1a engine · 1b MCP · 1c resilience).
+- Phase 2 — deployment hardening: systemd always-on, RPD/quota telemetry + rotation,
+  backoff, additional providers (incl. Tier-B under the gate). Not started.

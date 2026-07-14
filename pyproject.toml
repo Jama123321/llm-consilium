@@ -6,8 +6,8 @@ target-version = "py310"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["healthcheck"]
+known-first-party = ["council", "consilium_mcp", "healthcheck"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["scripts"]
+pythonpath = [".", "scripts"]
