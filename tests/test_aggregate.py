@@ -118,3 +118,123 @@ def test_all_failed_raises():
     ans = _answers(("m1", False, None), ("m2", False, None))
     with pytest.raises(AllMembersFailed):
         _run(ans, _judge)
+
+
+def _members(*pairs):
+    # pairs: (alias, answer)
+    return [MemberAnswer(a, ok=True, answer=ans, detail="ok") for a, ans in pairs]
+
+
+def test_peer_rank_picks_mean_ordinal_winner():
+    ans = _members(
+        ("m1", "Answer ONE is long and detailed and substantive."),
+        ("m2", "Answer TWO is long and detailed and substantive."),
+        ("m3", "Answer THREE is long and detailed and substantive."),
+    )
+    # With rng=Random(0), 3 answers get code-names Aardvark/Basilisk/Cheetah in some order.
+    # Each ranker returns a fixed ranking; controller-independent because we assert on the
+    # winning TEXT, resolved through the code-name mapping.
+    async def caller(alias, prompt):
+        # every ranker ranks the SAME code-name order (best->worst) as printed in `prompt`;
+        # pick the first code-name that appears in the block as the unanimous winner
+        import re as _re
+        names = _re.findall(r"^([A-Z][a-z]+):$", prompt, _re.MULTILINE)
+        return "RANKING: " + ", ".join(names)  # everyone agrees on block order
+
+    r = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="peer-rank"))
+    assert r.mode == "peer-rank"
+    # unanimous first choice -> high confidence, and the winner is a real member answer
+    assert r.confidence == "high"
+    assert r.answer in [a.answer for a in ans]
+
+
+def test_peer_rank_excludes_self_vote():
+    ans = _members(
+        ("m1", "Answer from m1, quite long and detailed here indeed."),
+        ("m2", "Answer from m2, quite long and detailed here indeed."),
+        ("m3", "Answer from m3, quite long and detailed here indeed."),
+        ("m4", "Answer from m4, quite long and detailed here indeed."),
+    )
+    from council.anonymize import anonymize_pairs
+    _, mapping = anonymize_pairs([(a.alias, a.answer) for a in ans], rng=random.Random(0))
+    cn = {owner: c for c, owner in mapping}
+
+    async def caller(alias, prompt):
+        # m1 and m2 both rank m1 first; m3 and m4 both rank m2 first.
+        # Counting self-votes, m1 and m2 tie (2 first-place each). Excluding m1's and m2's
+        # self-votes, m2 wins outright (m3 & m4 back it, m1 does not) — so only correct
+        # self-vote exclusion reliably picks m2.
+        if alias in ("m1", "m2"):
+            order = [cn["m1"], cn["m2"], cn["m3"], cn["m4"]]
+        else:
+            order = [cn["m2"], cn["m1"], cn["m3"], cn["m4"]]
+        return "RANKING: " + ", ".join(order)
+
+    r = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="peer-rank"))
+    assert r.answer == "Answer from m2, quite long and detailed here indeed."
+
+
+def test_peer_rank_falls_back_to_judge_when_too_few_rankers():
+    ans = _members(("m1", "A long detailed answer about the tradeoffs here."),
+                   ("m2", "Another long detailed answer with different emphasis."))
+
+    async def caller(alias, prompt):
+        if "RANKING" in prompt or "Rank them" in prompt:  # ranker prompt -> unparseable
+            return "I cannot rank these."
+        return "Judged merge.\nDISAGREEMENTS: none\nCONFIDENCE: medium"
+
+    r = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="peer-rank"))
+    assert r.mode == "judge" and r.answer == "Judged merge."
+
+
+def test_mode_forces_path_and_unknown_raises():
+    ans = _members(("m1", "yes"), ("m2", "yes"), ("m3", "no"))
+    # closed-form, but mode='judge' forces the judge path
+    async def judge(alias, prompt):
+        return "Merged.\nDISAGREEMENTS: none\nCONFIDENCE: low"
+    rj = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=judge, judge_aliases=["chair"], rng=random.Random(0), mode="judge"))
+    assert rj.mode == "judge"
+    # mode='vote' forces vote
+    rv = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=judge, judge_aliases=["chair"], mode="vote"))
+    assert rv.mode == "vote" and rv.answer == "yes"
+    # unknown mode
+    with pytest.raises(ValueError):
+        asyncio.run(
+            aggregate.aggregate("q", ans, caller=judge, judge_aliases=["chair"], mode="bogus"))
+
+
+def test_parse_ranking_full_order():
+    valid = ["Aardvark", "Basilisk", "Cheetah"]
+    assert aggregate._parse_ranking("RANKING: Cheetah, Aardvark, Basilisk", valid) == [
+        "Cheetah", "Aardvark", "Basilisk"]
+
+
+def test_parse_ranking_partial_keeps_only_listed():
+    valid = ["Aardvark", "Basilisk", "Cheetah"]
+    # missing names are NOT appended by the parser (the scorer treats them as tied-last)
+    assert aggregate._parse_ranking("RANKING: Basilisk, Aardvark", valid) == [
+        "Basilisk", "Aardvark"]
+
+
+def test_parse_ranking_absent_or_malformed_returns_empty():
+    valid = ["Aardvark", "Basilisk"]
+    assert aggregate._parse_ranking("I cannot rank these.", valid) == []
+    assert aggregate._parse_ranking("", valid) == []
+
+
+def test_parse_ranking_dedupes_and_drops_unknown():
+    valid = ["Aardvark", "Basilisk"]
+    # duplicate Aardvark collapses; unknown 'Zebra' dropped
+    assert aggregate._parse_ranking(
+        "RANKING: Aardvark, Aardvark, Zebra, Basilisk", valid) == ["Aardvark", "Basilisk"]
+
+
+def test_parse_ranking_case_insensitive_marker_and_names():
+    valid = ["Aardvark", "Basilisk"]
+    assert aggregate._parse_ranking("ranking: basilisk, AARDVARK", valid) == [
+        "Basilisk", "Aardvark"]

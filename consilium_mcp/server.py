@@ -82,7 +82,7 @@ async def ask(
 @mcp.tool()
 async def council(
     prompt: str, sensitivity: str = "sensitive",
-    members: list[str] | None = None, size: int | None = None,
+    members: list[str] | None = None, size: int | None = None, mode: str | None = None,
 ) -> dict:
     """Convene the council: fan out to several diverse free models and aggregate.
 
@@ -97,6 +97,10 @@ async def council(
         privacy gate or exhausted are dropped (see `note`).
     size: council size override (else adaptive 3-5 by task type). Ignored when `members`
         is given (its length wins).
+    mode: aggregation strategy — omit for auto (majority vote for closed-form, else chair
+        synthesis). "judge" forces chair synthesis; "vote" forces majority; "peer-rank"
+        has members rank each other's anonymized answers and returns the winner verbatim
+        (self-votes excluded).
     Returns: {answer, mode, judge_used, disagreements, per_member, note, confidence}.
         `note` records roster decisions (auto capability/size, dropped members,
         fallbacks). `confidence` (high/medium/low) is the chair's confidence the
@@ -104,7 +108,7 @@ async def council(
     """
     return _shape_council(
         await _get_orch().council(
-            prompt, sensitivity=sensitivity, members=members, size=size
+            prompt, sensitivity=sensitivity, members=members, size=size, mode=mode,
         )
     )
 

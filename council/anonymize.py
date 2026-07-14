@@ -10,18 +10,28 @@ CODE_NAMES: tuple[str, ...] = (
 )
 
 
-def anonymize(
-    answers: list[str], *, rng: random.Random | None = None
-) -> tuple[str, list[str]]:
-    if len(answers) > len(CODE_NAMES):
+def anonymize_pairs(
+    pairs: list[tuple[str, str]], *, rng: random.Random | None = None
+) -> tuple[str, list[tuple[str, str]]]:
+    if len(pairs) > len(CODE_NAMES):
         raise ValueError(
-            f"too many answers to anonymize: {len(answers)} > {len(CODE_NAMES)}"
+            f"too many answers to anonymize: {len(pairs)} > {len(CODE_NAMES)}"
         )
     r = rng or random.Random()
-    shuffled = list(answers)
+    shuffled = list(pairs)
     r.shuffle(shuffled)
     names = list(CODE_NAMES[: len(shuffled)])
     block = "\n\n".join(
-        f"{name}:\n{ans}" for name, ans in zip(names, shuffled, strict=True)
+        f"{name}:\n{text}" for name, (_owner, text) in zip(names, shuffled, strict=True)
     )
-    return block, names
+    mapping = [
+        (name, owner) for name, (owner, _text) in zip(names, shuffled, strict=True)
+    ]
+    return block, mapping
+
+
+def anonymize(
+    answers: list[str], *, rng: random.Random | None = None
+) -> tuple[str, list[str]]:
+    block, mapping = anonymize_pairs([("", a) for a in answers], rng=rng)
+    return block, [codename for codename, _owner in mapping]

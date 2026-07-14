@@ -84,6 +84,22 @@ def test_council_passes_confidence_through():
     assert r.confidence == "high"
 
 
+def test_council_peer_rank_mode_reaches_aggregate():
+    class RankCaller:
+        calls = []
+
+        async def __call__(self, alias, prompt):
+            self.calls.append((alias, prompt))
+            if "Classify" in prompt:
+                return "reasoning"
+            if "RANKING:" in prompt:  # the peer-rank ranker prompt
+                return "RANKING: Aardvark, Basilisk, Cheetah"
+            return "A detailed multi sentence answer explaining the tradeoffs."
+
+    r = asyncio.run(_orch(RankCaller()).council("explain the tradeoffs", mode="peer-rank"))
+    assert r.mode == "peer-rank"
+
+
 def test_council_manual_roster_used():
     rec = Recorder()
     r = asyncio.run(_orch(rec).council("x", members=["council/groq-gpt-oss-120b"]))
