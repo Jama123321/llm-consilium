@@ -46,3 +46,15 @@ def test_shape_council():
     assert out["per_member"][0] == {
         "alias": "council/x", "ok": True, "detail": "ok", "answer": "hi",
     }
+
+
+def test_stats_delegates_to_usage_summary(monkeypatch):
+    class FakeOrch:
+        def usage_summary(self):
+            return [{"alias": "council/x", "requests": 2, "tokens": 10, "exhausted": False}]
+
+    monkeypatch.setattr(server, "_orch", FakeOrch())
+    import asyncio
+
+    rows = asyncio.run(server.stats())
+    assert rows[0]["alias"] == "council/x" and rows[0]["requests"] == 2

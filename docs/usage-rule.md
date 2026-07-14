@@ -16,6 +16,8 @@ driver** — you (Claude) remain the primary reasoner.
   or `model` for a specific member).
 - `council(prompt, sensitivity?)` — fan out to diverse models + aggregate. Use for
   high-stakes cross-checks where diverse errors matter (costs more free-tier RPD).
+- `stats()` — today's per-member usage (requests, tokens) vs daily caps; use to check
+  headroom before a heavy `council` call.
 - **Privacy:** always set `sensitivity`. Default `sensitive` (Tier-A only). Use
   `public` only for generic/published questions. **Never** send secrets/.env/credentials
   to any free tier — the gate refuses obvious secrets, but strip them yourself first.
