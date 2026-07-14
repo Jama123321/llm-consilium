@@ -101,6 +101,9 @@ async def council(
         synthesis). "judge" forces chair synthesis; "vote" forces majority; "peer-rank"
         has members rank each other's anonymized answers and returns the winner verbatim
         (self-votes excluded).
+        "debate" runs a stance-steered debate — members critique and revise each other's
+        anonymized answers under for/against/neutral stances until they converge, then the
+        chair synthesizes; strongest for contentious questions, most free-tier calls.
     Returns: {answer, mode, judge_used, disagreements, per_member, note, confidence}.
         `note` records roster decisions (auto capability/size, dropped members,
         fallbacks). `confidence` (high/medium/low) is the chair's confidence the

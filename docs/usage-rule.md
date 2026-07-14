@@ -22,6 +22,7 @@ driver** — you (Claude) remain the primary reasoner.
   synthesized answer is correct.
   Pass `mode="peer-rank"` to have members rank each other's anonymized answers (winner
   verbatim, self-votes excluded); `mode="judge"`/`"vote"` force those; omit for auto.
+  `mode="debate"` runs a stance-steered debate that converges then synthesizes (most calls).
 - `stats()` — today's per-member usage (requests, tokens) vs daily caps; use to check
   headroom before a heavy `council` call.
 - **Privacy:** always set `sensitivity`. Default `sensitive` (Tier-A only). Use

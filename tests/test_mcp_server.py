@@ -119,3 +119,19 @@ def test_council_tool_passes_mode(monkeypatch):
     import asyncio
     out = asyncio.run(server.council("q", mode="peer-rank"))
     assert captured["mode"] == "peer-rank" and out["mode"] == "peer-rank"
+
+
+def test_council_tool_passes_debate_mode(monkeypatch):
+    captured = {}
+
+    class FakeOrch:
+        async def council(self, prompt, *, members=None, size=None, mode=None,
+                          sensitivity="sensitive"):
+            captured["mode"] = mode
+            return CouncilResult("a", [], "none", "council/x", "debate", note="",
+                                 confidence="high")
+
+    monkeypatch.setattr(server, "_orch", FakeOrch())
+    import asyncio
+    out = asyncio.run(server.council("q", mode="debate"))
+    assert captured["mode"] == "debate" and out["mode"] == "debate"
