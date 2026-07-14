@@ -265,3 +265,83 @@ def test_parse_revision():
     assert aggregate._parse_revision("no marker here") is None
     assert aggregate._parse_revision("revised: lowercase marker works") == "lowercase marker works"
     assert aggregate._parse_revision("REVISED:    ") is None
+
+
+def test_debate_assigns_round_robin_stances():
+    ans = _members(("m1", "alpha one"), ("m2", "bravo two"), ("m3", "charlie three"))
+    stances = []
+
+    async def caller(alias, prompt):
+        if "debating" in prompt:
+            for s in ("for", "against", "neutral"):
+                if f"stance: {s}" in prompt:
+                    stances.append(s)
+            return "REVISED: converged shared answer text for all members here now"
+        return "Merged.\nDISAGREEMENTS: none\nCONFIDENCE: high"
+
+    asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="debate"))
+    assert set(stances) == {"for", "against", "neutral"}
+
+
+def test_debate_converges_early_and_stops():
+    ans = _members(("m1", "initial one"), ("m2", "initial two"), ("m3", "initial three"))
+    calls = {"challenge": 0}
+
+    async def caller(alias, prompt):
+        if "debating" in prompt:
+            calls["challenge"] += 1
+            return "Critique.\nREVISED: consensus answer shared by all members here now"
+        return "Merged consensus.\nDISAGREEMENTS: none\nCONFIDENCE: high"
+
+    r = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="debate"))
+    assert r.mode == "debate" and r.answer == "Merged consensus."
+    assert calls["challenge"] == 3  # all identical -> converged after 1 round (not 2)
+    assert r.confidence == "high"
+
+
+def test_debate_runs_full_rounds_when_divergent():
+    ans = _members(("m1", "alpha"), ("m2", "bravo"), ("m3", "charlie"))
+    calls = {"challenge": 0}
+
+    async def caller(alias, prompt):
+        if "debating" in prompt:
+            calls["challenge"] += 1
+            return f"REVISED: wordone{calls['challenge']} wordtwo{calls['challenge']}"
+        return "Merged.\nDISAGREEMENTS: they differ\nCONFIDENCE: medium"
+
+    r = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="debate"))
+    assert r.mode == "debate"
+    assert calls["challenge"] == 6  # never converges -> 2 full rounds x 3 members
+    assert r.confidence == "low"  # pairwise-disjoint revisions
+
+
+def test_debate_single_member_falls_back_to_judge():
+    ans = _members(("m1", "only answer here that is reasonably long indeed"))
+
+    async def caller(alias, prompt):
+        return "Judged.\nDISAGREEMENTS: none\nCONFIDENCE: high"
+
+    r = asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="debate"))
+    assert r.mode == "judge"
+
+
+def test_debate_failed_challenger_keeps_prior_answer():
+    ans = _members(("m1", "prioralpha keeps"), ("m2", "priorbravo keeps"),
+                   ("m3", "priorcharlie keeps"))
+    captured = {}
+
+    async def caller(alias, prompt):
+        if "debating" in prompt:
+            if alias == "m1":
+                raise MemberCallError("m1", "boom")
+            return "REVISED: revised shared text for the survivors here today"
+        captured["judge"] = prompt
+        return "Merged.\nDISAGREEMENTS: none\nCONFIDENCE: low"
+
+    asyncio.run(aggregate.aggregate(
+        "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="debate"))
+    assert "prioralpha" in captured["judge"]  # m1's prior answer survived into synthesis

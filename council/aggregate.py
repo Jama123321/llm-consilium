@@ -35,6 +35,22 @@ _RANK_PROMPT = (
     "Question:\n{prompt}\n\nAnswers:\n{candidates}"
 )
 
+# Stance-steered debate: members critique the anonymized answers from an assigned stance,
+# then revise; rounds repeat until word-set convergence. (Design ideas: PAL stance-steering
+# Apache-2.0 + DUH debate/convergence AGPL — both reimplemented; the math is standard.)
+_STANCES = ("for", "against", "neutral")
+_DEBATE_PROMPT = (
+    "You are a member of a council debating a question. Your assigned stance: {stance}.\n"
+    "- for: argue in favour of the strongest position among the answers.\n"
+    "- against: probe the answers for errors, gaps, and weak reasoning.\n"
+    "- neutral: weigh the positions impartially.\n"
+    "Your stance is NOT a license to lie — flag only genuine errors, never invent them.\n\n"
+    "Below are the current anonymized candidate answers. Critique them from your stance, "
+    "then give your OWN best revised answer to the question.\n\n"
+    "End with exactly one line:\nREVISED: <your single best answer>\n\n"
+    "Question:\n{prompt}\n\nCurrent answers:\n{candidates}"
+)
+
 _CONF_RE = re.compile(r"(high|medium|low)", re.IGNORECASE)
 _RANKING_RE = re.compile(r"RANKING:\s*(.+)", re.IGNORECASE)
 
@@ -190,6 +206,56 @@ async def _peer_rank(
     return AggregateResult(answer_of_alias[owner_of[winner]], "peer-rank", "", None, confidence)
 
 
+async def _debate(
+    prompt: str, ok_members: list[MemberAnswer], *, caller: AsyncCaller,
+    judge_aliases: list[str], rng: random.Random | None,
+    max_rounds: int = 2, threshold: float = 0.7, timeout: float = 30.0,
+) -> AggregateResult:
+    aliases = [a.alias for a in ok_members]
+    current = {a.alias: (a.answer or "") for a in ok_members}
+    if len(aliases) < 2:
+        return await _judge(
+            prompt, list(current.values()), caller=caller,
+            judge_aliases=judge_aliases, rng=rng,
+        )
+
+    async def _challenge(index: int, alias: str, block: str) -> tuple[str, str | None]:
+        stance = _STANCES[index % len(_STANCES)]
+        try:
+            reply = await asyncio.wait_for(
+                caller(
+                    alias,
+                    _DEBATE_PROMPT.format(stance=stance, prompt=prompt, candidates=block),
+                ),
+                timeout,
+            )
+        except Exception:  # noqa: BLE001 - a failed debater keeps its prior answer
+            return alias, None
+        return alias, _parse_revision(reply)
+
+    conv = 0.0
+    for _round in range(max_rounds):
+        block, _ = anonymize_pairs([(a, current[a]) for a in aliases], rng=rng)
+        results = await asyncio.gather(
+            *[_challenge(i, a, block) for i, a in enumerate(aliases)]
+        )
+        for alias, revised in results:
+            if revised:
+                current[alias] = revised
+        conv = _mean_pairwise_jaccard(list(current.values()))
+        if conv >= threshold:
+            break
+
+    confidence = "high" if conv >= 0.7 else "medium" if conv >= 0.4 else "low"
+    judged = await _judge(
+        prompt, list(current.values()), caller=caller,
+        judge_aliases=judge_aliases, rng=rng,
+    )
+    return AggregateResult(
+        judged.answer, "debate", judged.disagreements, judged.judge_used, confidence
+    )
+
+
 async def aggregate(
     prompt: str,
     answers: list[MemberAnswer],
@@ -213,6 +279,10 @@ async def aggregate(
         return await _judge(prompt, ok, caller=caller, judge_aliases=judge_aliases, rng=rng)
     if mode == "peer-rank":
         return await _peer_rank(
+            prompt, ok_members, caller=caller, judge_aliases=judge_aliases, rng=rng
+        )
+    if mode == "debate":
+        return await _debate(
             prompt, ok_members, caller=caller, judge_aliases=judge_aliases, rng=rng
         )
     raise ValueError(f"unknown aggregation mode: {mode}")
