@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from council import orchestrator as orch
-from council.types import AskResult, CouncilResult
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from council import orchestrator as orch  # noqa: E402
+from council.types import AskResult, CouncilResult  # noqa: E402
 
 mcp = FastMCP("consilium")
 _orch: orch.Orchestrator | None = None
