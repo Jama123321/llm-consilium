@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from council import aggregate as agg
 from council import client, compose, fanout, privacy, registry, router, usage
+from council import runlog as runlog_module
 from council.errors import AllMembersFailed, MemberCallError, NoEligibleMember, PrivacyRefusal
 from council.types import AskResult, AsyncCaller, CouncilResult, Member
 
@@ -20,15 +21,27 @@ class Orchestrator:
         classifier_alias: str = CLASSIFIER_ALIAS,
         chair_alias: str = CHAIR_ALIAS,
         store: usage.UsageStore | None = None,
+        runlog: runlog_module.RunLog | None = None,
     ) -> None:
         self._members = members
         self._caller = caller
         self._classifier_alias = classifier_alias
         self._chair_alias = chair_alias
         self._store = store
+        self._runlog = runlog
 
     def _by_alias(self, alias: str) -> Member | None:
         return next((m for m in self._members if m.alias == alias), None)
+
+    def _tier_of(self, alias: str) -> str:
+        member = self._by_alias(alias)
+        return member.privacy_tier if member else "?"
+
+    def _log_council(self, entry: dict, chosen: list[Member]) -> None:
+        if self._runlog is None:
+            return
+        redact = any(m.privacy_tier == "B" for m in chosen)
+        self._runlog.record(entry, redact=redact)
 
     def _counts(self) -> dict[str, tuple[int, int]]:
         return self._store.counts() if self._store is not None else {}
@@ -118,6 +131,30 @@ class Orchestrator:
             prompt, answers, caller=self._caller,
             judge_aliases=self._judge_order(chosen), mode=mode,
         )
+        self._log_council(
+            {
+                "tool": "council",
+                "sensitivity": sensitivity,
+                "mode": result.mode,
+                "confidence": result.confidence,
+                "judge_used": result.judge_used,
+                "disagreements": result.disagreements,
+                "note": "; ".join(notes),
+                "roster": [a.alias for a in answers],
+                "per_member": [
+                    {
+                        "alias": a.alias,
+                        "ok": a.ok,
+                        "tier": self._tier_of(a.alias),
+                        "answer": a.answer,
+                    }
+                    for a in answers
+                ],
+                "prompt": prompt,
+                "answer": result.answer,
+            },
+            chosen,
+        )
         return CouncilResult(
             answer=result.answer, per_member=answers, disagreements=result.disagreements,
             judge_used=result.judge_used, mode=result.mode, note="; ".join(notes),
@@ -152,4 +189,4 @@ def build(
     members = registry.load_members(config_path, available_keys=registry.available_env_keys())
     store = usage.UsageStore()
     caller = client.make_caller(base_url, api_key, recorder=store.record)
-    return Orchestrator(members, caller, store=store)
+    return Orchestrator(members, caller, store=store, runlog=runlog_module.RunLog())

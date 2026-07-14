@@ -1,9 +1,11 @@
 import asyncio
+import json
 
 import pytest
 
 from council.errors import AllMembersFailed, MemberCallError, PrivacyRefusal
 from council.orchestrator import Orchestrator
+from council.runlog import RunLog
 from council.types import Member
 
 GLM = Member(
@@ -218,3 +220,18 @@ def test_usage_summary_returns_rows():
     o = Orchestrator(ALL, Recorder(), store=_FakeStore({"council/cerebras-glm-4.7": (3, 500)}))
     rows = {row["alias"]: row for row in o.usage_summary()}
     assert rows["council/cerebras-glm-4.7"]["requests"] == 3
+
+
+def test_council_logs_run_to_runlog(tmp_path):
+    log_path = tmp_path / "runs.jsonl"
+    o = Orchestrator(ALL, Recorder(), runlog=RunLog(log_path, enabled=True))
+    asyncio.run(o.council("explain the tradeoffs in depth please"))
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["tool"] == "council"
+    assert "mode" in entry and "confidence" in entry and "per_member" in entry
+    # sensitive (all-Tier-A) run keeps content and is not redacted
+    assert entry["redacted"] is False
+    assert entry["prompt"] == "explain the tradeoffs in depth please"
+    assert entry["answer"] is not None
