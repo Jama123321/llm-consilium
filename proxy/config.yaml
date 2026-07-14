@@ -67,14 +67,16 @@ model_list:
       privacy_tier: A
       scores: {general: 5, code: 5, reasoning: 4}
       rpd: 50
-  - model_name: council/github-o4-mini
+  # o-series (o4-mini/o3) are unavailable to this GitHub free tier; gpt-4.1-mini
+  # is the available fast GitHub model (verified live in Task 9).
+  - model_name: council/github-gpt-4.1-mini
     litellm_params:
-      model: github/o4-mini
+      model: github/gpt-4.1-mini
       api_key: os.environ/GITHUB_API_KEY
       rpm: 10
     model_info:
       privacy_tier: A
-      scores: {reasoning: 5, fast: 4, code: 4, general: 3}
+      scores: {fast: 5, general: 4, code: 4}
       rpd: 50
   # Tier B — free tier trains/retains or undocumented => public prompts only.
   - model_name: council/mistral-large
@@ -93,14 +95,16 @@ model_list:
     model_info:
       privacy_tier: B
       scores: {code: 5, fast: 4, general: 3}
-  - model_name: council/sambanova-llama-405b
+  # SambaNova dropped Llama-3.1-405B from the free catalog; DeepSeek-V3.1 is the
+  # available strong model (verified live in Task 9).
+  - model_name: council/sambanova-deepseek-v3
     litellm_params:
-      model: sambanova/Meta-Llama-3.1-405B-Instruct
+      model: sambanova/DeepSeek-V3.1
       api_key: os.environ/SAMBANOVA_API_KEY
       rpm: 10
     model_info:
       privacy_tier: B
-      scores: {reasoning: 4, general: 4, code: 3}
+      scores: {reasoning: 4, general: 4, code: 4}
   - model_name: council/sambanova-llama-70b
     litellm_params:
       model: sambanova/Meta-Llama-3.3-70B-Instruct

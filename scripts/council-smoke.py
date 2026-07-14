@@ -22,13 +22,34 @@ async def _main() -> int:
         print("ERROR: LITELLM_MASTER_KEY not set", file=sys.stderr)
         return 2
     o = orch.build(api_key=key)
-    ask = await o.ask("In one word, is 17 prime? Answer yes or no.")
-    print(f"[ask] model={ask.model_used} note={ask.note}\n  -> {ask.answer.strip()[:120]}")
-    council = await o.council("Name one concrete risk of free-tier LLM routing and why.")
-    print(f"[council] mode={council.mode} judge={council.judge_used}")
-    for a in council.per_member:
-        print(f"  {'ok ' if a.ok else 'ABS'} {a.alias}: {a.detail}")
-    print(f"  -> {council.answer.strip()[:200]}")
+
+    # 1) ping each active member with a 1-token question
+    from council import registry
+    present = registry.available_env_keys()
+    members = registry.load_members("proxy/config.yaml", available_keys=present)
+    print(f"[active members] {len(members)}: {[m.alias for m in members]}")
+    for m in members:
+        try:
+            r = await o.ask("Reply with the single word: ok", model=m.alias,
+                            sensitivity="public")
+            print(f"  ok  {m.alias}: {r.answer.strip()[:40]}")
+        except Exception as exc:  # noqa: BLE001 - smoke: report and continue
+            print(f"  ERR {m.alias}: {exc.__class__.__name__}: {exc}")
+
+    # 2) public council may include Tier-B
+    pub = await o.council("Name one risk of free-tier LLM routing.", sensitivity="public")
+    print(f"[public council] note={pub.note}")
+    for a in pub.per_member:
+        print(f"  {'ok ' if a.ok else 'ABS'} {a.alias}")
+
+    # 3) sensitive council must contact NO Tier-B member
+    tier = {m.alias: m.privacy_tier for m in members}
+    sen = await o.council("Explain one tradeoff of self-hosting an LLM proxy.",
+                          sensitivity="sensitive")
+    contacted_b = [a.alias for a in sen.per_member if tier.get(a.alias) == "B"]
+    print(f"[sensitive council] note={sen.note} tier-B contacted={contacted_b}")
+    assert not contacted_b, f"PRIVACY LEAK: Tier-B contacted on sensitive: {contacted_b}"
+    print("[tier isolation] OK — no Tier-B on sensitive")
     return 0
 
 

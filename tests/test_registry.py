@@ -14,16 +14,16 @@ def test_loads_all_thirteen_members():
         "council/cerebras-glm-4.7", "council/cerebras-gpt-oss-120b",
         "council/groq-llama-70b", "council/groq-gpt-oss-120b",
         "council/cloudflare-llama-70b",
-        "council/github-gpt-4.1", "council/github-o4-mini",
+        "council/github-gpt-4.1", "council/github-gpt-4.1-mini",
         "council/mistral-large", "council/mistral-codestral",
-        "council/sambanova-llama-405b", "council/sambanova-llama-70b",
+        "council/sambanova-deepseek-v3", "council/sambanova-llama-70b",
         "council/nvidia-deepseek-r1", "council/nvidia-llama-70b",
     }
 
 
 def test_tier_b_providers_tagged_b():
     m = _members()
-    for alias in ["council/mistral-large", "council/sambanova-llama-405b",
+    for alias in ["council/mistral-large", "council/sambanova-deepseek-v3",
                   "council/nvidia-deepseek-r1"]:
         assert m[alias].privacy_tier == "B"
     assert m["council/github-gpt-4.1"].privacy_tier == "A"
