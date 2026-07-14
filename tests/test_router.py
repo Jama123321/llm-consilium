@@ -42,3 +42,16 @@ def test_classify_defaults_to_general_on_unknown():
 
     cap = asyncio.run(router.classify("hi", caller=fake, classifier_alias="c"))
     assert cap == "general"
+
+
+def test_rank_orders_by_strength_then_rpm():
+    assert [m.alias for m in router.rank(MEMBERS, "general")] == ["strong", "fast"]
+
+
+def test_rank_raises_when_no_capability():
+    import pytest
+
+    from council.errors import NoEligibleMember
+
+    with pytest.raises(NoEligibleMember):
+        router.rank(MEMBERS, "vision")

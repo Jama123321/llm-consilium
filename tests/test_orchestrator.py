@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from council.errors import PrivacyRefusal
+from council.errors import AllMembersFailed, MemberCallError, PrivacyRefusal
 from council.orchestrator import Orchestrator
 from council.types import Member
 
@@ -59,3 +59,28 @@ def test_council_default_trio_and_judge():
         "council/cloudflare-llama-70b",
     }
     assert r.mode == "judge" and r.judge_used == "council/cerebras-glm-4.7"
+
+
+def test_ask_auto_falls_back_on_rate_limit():
+    class FB:
+        async def __call__(self, alias, prompt):
+            if "Classify" in prompt:
+                return "reasoning"
+            if alias == "council/cerebras-glm-4.7":
+                raise MemberCallError(alias, "429 rate-limited")
+            return "fallback answer"
+
+    r = asyncio.run(_orch(FB()).ask("prove a theorem"))
+    assert r.model_used == "council/groq-gpt-oss-120b"
+    assert "429" in r.note
+
+
+def test_ask_raises_all_members_failed_when_all_rate_limited():
+    class AllFail:
+        async def __call__(self, alias, prompt):
+            if "Classify" in prompt:
+                return "reasoning"
+            raise MemberCallError(alias, "429 rate-limited")
+
+    with pytest.raises(AllMembersFailed):
+        asyncio.run(_orch(AllFail()).ask("x"))

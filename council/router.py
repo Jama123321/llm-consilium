@@ -24,8 +24,12 @@ async def classify(prompt: str, *, caller: AsyncCaller, classifier_alias: str) -
     return _normalize_capability(raw)
 
 
-def select(members: list[Member], capability: str) -> Member:
+def rank(members: list[Member], capability: str) -> list[Member]:
     candidates = [m for m in members if capability in m.capabilities]
     if not candidates:
         raise NoEligibleMember(f"no member has capability '{capability}'")
-    return max(candidates, key=lambda m: (m.strength, m.rpm))
+    return sorted(candidates, key=lambda m: (m.strength, m.rpm), reverse=True)
+
+
+def select(members: list[Member], capability: str) -> Member:
+    return rank(members, capability)[0]

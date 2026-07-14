@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from council import aggregate as agg
 from council import client, fanout, privacy, registry, router
-from council.errors import NoEligibleMember, PrivacyRefusal
+from council.errors import AllMembersFailed, MemberCallError, NoEligibleMember, PrivacyRefusal
 from council.types import AskResult, AsyncCaller, CouncilResult, Member
 
 DEFAULT_BASE_URL = "http://127.0.0.1:4000/v1"
@@ -48,18 +48,24 @@ class Orchestrator:
                 )
             answer = await self._caller(member.alias, prompt)
             return AskResult(answer=answer, model_used=member.alias, capability=None, note="direct")
-        if capability is None:
+        auto = capability is None
+        if auto:
             capability = await router.classify(
                 prompt, caller=self._caller, classifier_alias=self._classifier_alias
             )
-            note = f"auto-routed: {capability}"
-        else:
-            note = f"routed: {capability}"
-        member = router.select(allowed, capability)
-        answer = await self._caller(member.alias, prompt)
-        return AskResult(
-            answer=answer, model_used=member.alias, capability=capability, note=note
-        )
+        errors: list[str] = []
+        for member in router.rank(allowed, capability):
+            try:
+                answer = await self._caller(member.alias, prompt)
+            except MemberCallError as exc:
+                errors.append(f"{member.alias}[{exc.detail}]")
+                continue
+            trail = " -> ".join([*errors, member.alias])
+            note = f"{'auto-routed' if auto else 'routed'}: {capability} -> {trail}"
+            return AskResult(
+                answer=answer, model_used=member.alias, capability=capability, note=note
+            )
+        raise AllMembersFailed(f"all '{capability}' members failed: {', '.join(errors)}")
 
     async def council(
         self, prompt: str, *, members: tuple[str, ...] | None = None, sensitivity: str = "sensitive"
