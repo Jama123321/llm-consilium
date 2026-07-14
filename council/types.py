@@ -50,3 +50,13 @@ class CouncilResult:
     judge_used: str | None
     mode: str
     note: str = ""
+    confidence: str = ""
+
+
+@dataclass(frozen=True)
+class AggregateResult:
+    answer: str
+    mode: str
+    disagreements: str
+    judge_used: str | None
+    confidence: str

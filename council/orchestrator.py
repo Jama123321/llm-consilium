@@ -114,12 +114,13 @@ class Orchestrator:
             chosen = await self._auto_roster(prompt, allowed, pool, size, notes)
 
         answers = await fanout.fan_out(prompt, chosen, self._caller)
-        merged, mode, disagreements, judge_used = await agg.aggregate(
+        result = await agg.aggregate(
             prompt, answers, caller=self._caller, judge_aliases=self._judge_order(chosen)
         )
         return CouncilResult(
-            answer=merged, per_member=answers, disagreements=disagreements,
-            judge_used=judge_used, mode=mode, note="; ".join(notes),
+            answer=result.answer, per_member=answers, disagreements=result.disagreements,
+            judge_used=result.judge_used, mode=result.mode, note="; ".join(notes),
+            confidence=result.confidence,
         )
 
     async def _auto_roster(

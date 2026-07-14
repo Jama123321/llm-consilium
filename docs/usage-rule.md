@@ -18,6 +18,8 @@ driver** — you (Claude) remain the primary reasoner.
   set of models and aggregate. `members` pins an exact roster (list of aliases); `size`
   overrides the adaptive 3-5 council size. Tier-B members are dropped on `sensitive`
   even if named. Use for high-stakes cross-checks (costs more free-tier RPD).
+  The result includes `confidence` (high/medium/low) — the chair's confidence the
+  synthesized answer is correct.
 - `stats()` — today's per-member usage (requests, tokens) vs daily caps; use to check
   headroom before a heavy `council` call.
 - **Privacy:** always set `sensitivity`. Default `sensitive` (Tier-A only). Use

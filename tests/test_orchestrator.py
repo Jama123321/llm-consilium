@@ -68,6 +68,22 @@ def test_council_auto_composes_vendor_diverse():
     assert r.mode == "judge" and r.judge_used == "council/cerebras-glm-4.7"
 
 
+def test_council_passes_confidence_through():
+    class ConfCaller:
+        calls = []
+
+        async def __call__(self, alias, prompt):
+            self.calls.append((alias, prompt))
+            if "Classify" in prompt:
+                return "reasoning"
+            if "DISAGREEMENTS" in prompt:  # the judge prompt
+                return "Merged.\nDISAGREEMENTS: none\nCONFIDENCE: high"
+            return "A detailed multi sentence answer explaining the tradeoffs."
+
+    r = asyncio.run(_orch(ConfCaller()).council("explain the tradeoffs in depth please"))
+    assert r.confidence == "high"
+
+
 def test_council_manual_roster_used():
     rec = Recorder()
     r = asyncio.run(_orch(rec).council("x", members=["council/groq-gpt-oss-120b"]))
