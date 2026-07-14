@@ -82,7 +82,7 @@ class Orchestrator:
 
     async def council(
         self, prompt: str, *, members: list[str] | None = None,
-        size: int | None = None, sensitivity: str = "sensitive",
+        size: int | None = None, mode: str | None = None, sensitivity: str = "sensitive",
     ) -> CouncilResult:
         privacy.scan_secrets(prompt)
         allowed = privacy.allowed_members(self._members, sensitivity)
@@ -115,7 +115,8 @@ class Orchestrator:
 
         answers = await fanout.fan_out(prompt, chosen, self._caller)
         result = await agg.aggregate(
-            prompt, answers, caller=self._caller, judge_aliases=self._judge_order(chosen)
+            prompt, answers, caller=self._caller,
+            judge_aliases=self._judge_order(chosen), mode=mode,
         )
         return CouncilResult(
             answer=result.answer, per_member=answers, disagreements=result.disagreements,
