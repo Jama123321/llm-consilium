@@ -1,7 +1,7 @@
-# Consilium LiteLLM proxy — Phase 0 (Tier-A providers only).
+# Consilium LiteLLM proxy — mixed Tier-A/Tier-B free-LLM pool.
 # Secrets are referenced via os.environ/* and loaded from ~/.config/consilium/.env.
 # The privacy_tier tags are read by the Phase 1 council privacy gate;
-# capabilities/strength are read by the Phase 1 router and council.
+# scores are read by the Phase 1 router and council.
 model_list:
   # Cerebras free catalog drifted from the 2026 audit (qwen-3-235b / llama-3.3-70b
   # no longer offered); pinned to live ids verified via GET api.cerebras.ai/v1/models.
@@ -128,5 +128,18 @@ model_list:
       scores: {general: 3, code: 3, fast: 4}
 router_settings:
   num_retries: 1
+  allowed_fails: 2
+  cooldown_time: 30
+  retry_policy:
+    TimeoutErrorRetries: 2
+    InternalServerErrorRetries: 2
+    RateLimitErrorRetries: 0
+    AuthenticationErrorRetries: 0
+    ContentPolicyViolationErrorRetries: 0
+  # Same-tier, same-capability failover only. NEVER route Tier-A -> Tier-B.
+  fallbacks:
+    - council/cerebras-glm-4.7: [council/github-gpt-4.1, council/groq-gpt-oss-120b]
+    - council/github-gpt-4.1: [council/cerebras-glm-4.7, council/groq-gpt-oss-120b]
+    - council/groq-llama-70b: [council/cloudflare-llama-70b, council/groq-gpt-oss-120b]
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
