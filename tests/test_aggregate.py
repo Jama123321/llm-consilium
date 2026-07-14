@@ -206,3 +206,35 @@ def test_mode_forces_path_and_unknown_raises():
     with pytest.raises(ValueError):
         asyncio.run(
             aggregate.aggregate("q", ans, caller=judge, judge_aliases=["chair"], mode="bogus"))
+
+
+def test_parse_ranking_full_order():
+    valid = ["Aardvark", "Basilisk", "Cheetah"]
+    assert aggregate._parse_ranking("RANKING: Cheetah, Aardvark, Basilisk", valid) == [
+        "Cheetah", "Aardvark", "Basilisk"]
+
+
+def test_parse_ranking_partial_keeps_only_listed():
+    valid = ["Aardvark", "Basilisk", "Cheetah"]
+    # missing names are NOT appended by the parser (the scorer treats them as tied-last)
+    assert aggregate._parse_ranking("RANKING: Basilisk, Aardvark", valid) == [
+        "Basilisk", "Aardvark"]
+
+
+def test_parse_ranking_absent_or_malformed_returns_empty():
+    valid = ["Aardvark", "Basilisk"]
+    assert aggregate._parse_ranking("I cannot rank these.", valid) == []
+    assert aggregate._parse_ranking("", valid) == []
+
+
+def test_parse_ranking_dedupes_and_drops_unknown():
+    valid = ["Aardvark", "Basilisk"]
+    # duplicate Aardvark collapses; unknown 'Zebra' dropped
+    assert aggregate._parse_ranking(
+        "RANKING: Aardvark, Aardvark, Zebra, Basilisk", valid) == ["Aardvark", "Basilisk"]
+
+
+def test_parse_ranking_case_insensitive_marker_and_names():
+    valid = ["Aardvark", "Basilisk"]
+    assert aggregate._parse_ranking("ranking: basilisk, AARDVARK", valid) == [
+        "Basilisk", "Aardvark"]
