@@ -105,3 +105,41 @@ def test_judge_order_excludes_chair_not_in_chosen():
 def test_judge_order_puts_chair_first_when_present():
     order = _orch(Recorder())._judge_order([GROQ, CF, GLM])
     assert order[0] == "council/cerebras-glm-4.7"
+
+
+class _FakeStore:
+    def __init__(self, counts):
+        self._counts = counts
+
+    def counts(self, day=None):
+        return self._counts
+
+
+def test_council_skips_exhausted_member():
+    # GLM exhausted by tpd; council should fall back to the remaining trio members
+    store = _FakeStore({"council/cerebras-glm-4.7": (0, 10**9)})
+    members = [
+        Member("council/cerebras-glm-4.7", "A", ("reasoning",), 5, 5, tpd=1000000),
+        GROQ, CF,
+    ]
+    o = Orchestrator(members, Recorder(), store=store)
+    r = asyncio.run(o.council("explain the tradeoffs in depth please"))
+    assert "council/cerebras-glm-4.7" not in {a.alias for a in r.per_member}
+
+
+def test_council_falls_back_when_all_exhausted():
+    store = _FakeStore({m.alias: (0, 10**9) for m in [GLM, GROQ, CF]})
+    members = [
+        Member(GLM.alias, "A", GLM.capabilities, 5, 5, tpd=1),
+        Member(GROQ.alias, "A", GROQ.capabilities, 4, 30, tpd=1),
+        Member(CF.alias, "A", CF.capabilities, 3, 10, tpd=1),
+    ]
+    o = Orchestrator(members, Recorder(), store=store)
+    r = asyncio.run(o.council("explain the tradeoffs in depth please"))
+    assert len(r.per_member) == 3  # fell back to the full gated trio
+
+
+def test_usage_summary_returns_rows():
+    o = Orchestrator(ALL, Recorder(), store=_FakeStore({"council/cerebras-glm-4.7": (3, 500)}))
+    rows = {row["alias"]: row for row in o.usage_summary()}
+    assert rows["council/cerebras-glm-4.7"]["requests"] == 3
