@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 DEFAULT_ENV_PATH = Path.home() / ".config" / "consilium" / ".env"
@@ -45,6 +46,19 @@ def write(path: str | Path = DEFAULT_ENV_PATH, values: dict[str, str] | None = N
     _group(lines, "Tier B (public prompts only)", _TIER_B, data)
     _group(lines, "Proxy auth", ("LITELLM_MASTER_KEY",), data)
     _group(lines, "Other", [k for k in data if k not in _KNOWN], data)
-    p.write_text("\n".join(lines).rstrip() + "\n")
-    if os.name == "posix":
-        p.chmod(0o600)
+    content = "\n".join(lines).rstrip() + "\n"
+    # Secure atomic write: create a fresh temp file (0o600 from creation via mkstemp on
+    # POSIX) then atomically replace the destination. This gives the secrets file tight
+    # perms with no world-readable window (fixes the chmod TOCTOU race) and replaces any
+    # pre-existing symlink at the destination rather than following it (fixes symlink
+    # redirection of secrets).
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".env-", suffix=".tmp")
+    try:
+        if os.name == "posix":
+            os.chmod(tmp, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        os.replace(tmp, p)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise

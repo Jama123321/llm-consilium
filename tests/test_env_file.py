@@ -30,3 +30,28 @@ def test_write_sets_posix_permissions(tmp_path):
     env_file.write(p, {"LITELLM_MASTER_KEY": "sk-1"})
     if os.name == "posix":
         assert (p.stat().st_mode & 0o777) == 0o600
+
+
+def test_write_replaces_symlink_instead_of_following(tmp_path):
+    if os.name != "posix":
+        import pytest
+        pytest.skip("symlink creation needs privilege on Windows")
+    target = tmp_path / "target.txt"
+    target.write_text("PREEXISTING")
+    link = tmp_path / ".env"
+    os.symlink(target, link)
+    env_file.write(link, {"LITELLM_MASTER_KEY": "sk-secret"})
+    assert not link.is_symlink()  # symlink replaced by a real file
+    assert env_file.load(link)["LITELLM_MASTER_KEY"] == "sk-secret"
+    assert target.read_text() == "PREEXISTING"  # attacker target NOT written through
+
+
+def test_write_tightens_perms_on_preexisting_loose_file(tmp_path):
+    if os.name != "posix":
+        import pytest
+        pytest.skip("posix permissions")
+    p = tmp_path / ".env"
+    p.write_text("OLD=1")
+    p.chmod(0o644)
+    env_file.write(p, {"LITELLM_MASTER_KEY": "sk-1"})
+    assert (p.stat().st_mode & 0o777) == 0o600  # loose perms fixed atomically, no race
