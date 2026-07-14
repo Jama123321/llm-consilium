@@ -20,6 +20,8 @@ driver** — you (Claude) remain the primary reasoner.
   even if named. Use for high-stakes cross-checks (costs more free-tier RPD).
   The result includes `confidence` (high/medium/low) — the chair's confidence the
   synthesized answer is correct.
+  Pass `mode="peer-rank"` to have members rank each other's anonymized answers (winner
+  verbatim, self-votes excluded); `mode="judge"`/`"vote"` force those; omit for auto.
 - `stats()` — today's per-member usage (requests, tokens) vs daily caps; use to check
   headroom before a heavy `council` call.
 - **Privacy:** always set `sensitivity`. Default `sensitive` (Tier-A only). Use

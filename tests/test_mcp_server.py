@@ -91,7 +91,9 @@ def test_council_tool_passes_members_and_size(monkeypatch):
     captured = {}
 
     class FakeOrch:
-        async def council(self, prompt, *, members=None, size=None, sensitivity="sensitive"):
+        async def council(
+            self, prompt, *, members=None, size=None, mode=None, sensitivity="sensitive",
+        ):
             captured.update(prompt=prompt, members=members, size=size, sensitivity=sensitivity)
             return CouncilResult("a", [], "none", None, "judge", note="ok")
 
@@ -101,3 +103,19 @@ def test_council_tool_passes_members_and_size(monkeypatch):
     assert captured == {
         "prompt": "q", "members": ["council/x"], "size": 3, "sensitivity": "public",
     }
+
+
+def test_council_tool_passes_mode(monkeypatch):
+    captured = {}
+
+    class FakeOrch:
+        async def council(
+            self, prompt, *, members=None, size=None, mode=None, sensitivity="sensitive",
+        ):
+            captured.update(mode=mode, members=members, size=size, sensitivity=sensitivity)
+            return CouncilResult("a", [], "none", None, "peer-rank", note="ok", confidence="high")
+
+    monkeypatch.setattr(server, "_orch", FakeOrch())
+    import asyncio
+    out = asyncio.run(server.council("q", mode="peer-rank"))
+    assert captured["mode"] == "peer-rank" and out["mode"] == "peer-rank"
