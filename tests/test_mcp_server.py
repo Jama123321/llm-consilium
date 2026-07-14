@@ -57,3 +57,15 @@ def test_server_inserts_repo_root_before_council_import():
     assert insert != -1, "server.py must insert the repo root on sys.path"
     assert council != -1
     assert insert < council, "the sys.path insert must precede the council import"
+
+
+def test_stats_delegates_to_usage_summary(monkeypatch):
+    class FakeOrch:
+        def usage_summary(self):
+            return [{"alias": "council/x", "requests": 2, "tokens": 10, "exhausted": False}]
+
+    monkeypatch.setattr(server, "_orch", FakeOrch())
+    import asyncio
+
+    rows = asyncio.run(server.stats())
+    assert rows[0]["alias"] == "council/x" and rows[0]["requests"] == 2

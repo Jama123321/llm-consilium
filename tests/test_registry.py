@@ -29,3 +29,12 @@ def test_capabilities_and_strength_parsed():
 def test_rpm_defaults_when_absent():
     # cloudflare alias has no rpm in config -> default 10
     assert _members()["council/cloudflare-llama-70b"].rpm == 10
+
+
+def test_daily_caps_parsed():
+    m = _members()
+    assert m["council/groq-llama-70b"].rpd == 1000
+    assert m["council/groq-llama-70b"].tpd is None
+    assert m["council/cloudflare-llama-70b"].tpd == 10000
+    assert m["council/cloudflare-llama-70b"].rpd is None
+    assert m["council/cerebras-glm-4.7"].tpd == 1000000

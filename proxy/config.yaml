@@ -18,6 +18,7 @@ model_list:
       privacy_tier: A
       strength: 5
       capabilities: [reasoning, general, code]
+      tpd: 1000000
   - model_name: council/cerebras-gpt-oss-120b
     litellm_params:
       model: cerebras/gpt-oss-120b
@@ -27,6 +28,7 @@ model_list:
       privacy_tier: A
       strength: 4
       capabilities: [reasoning, code, general]
+      tpd: 1000000
   - model_name: council/groq-llama-70b
     litellm_params:
       model: groq/llama-3.3-70b-versatile
@@ -36,6 +38,7 @@ model_list:
       privacy_tier: A
       strength: 3
       capabilities: [general, fast, code]
+      rpd: 1000
   # Groq free tier: does NOT train on prompts (the Tier-A criterion); default keeps
   # 7-day operational logs — full zero-retention needs ZDR (later action, non-blocking).
   - model_name: council/groq-gpt-oss-120b
@@ -47,6 +50,7 @@ model_list:
       privacy_tier: A
       strength: 4
       capabilities: [reasoning, code, general, fast]
+      rpd: 1000
   - model_name: council/cloudflare-llama-70b
     litellm_params:
       model: openai/@cf/meta/llama-3.3-70b-instruct-fp8-fast
@@ -56,6 +60,7 @@ model_list:
       privacy_tier: A
       strength: 3
       capabilities: [general, fast]
+      tpd: 10000
 router_settings:
   num_retries: 1
 general_settings:

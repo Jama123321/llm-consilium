@@ -79,6 +79,12 @@ async def council(prompt: str, sensitivity: str = "sensitive") -> dict:
     return _shape_council(await _get_orch().council(prompt, sensitivity=sensitivity))
 
 
+@mcp.tool()
+async def stats() -> list[dict]:
+    """Today's per-member Consilium usage (requests, tokens) vs daily caps."""
+    return _get_orch().usage_summary()
+
+
 def main() -> None:
     mcp.run()
 

@@ -6,8 +6,8 @@ consult the council.
 ```markdown
 ## Free-LLM council (consilium MCP)
 
-A user-scope MCP server exposes two tools backed by a privacy-gated pool of free
-Tier-A models (proxy at 127.0.0.1:4000). The council is a **second opinion, not the
+A user-scope MCP server exposes three tools (`ask`, `council`, `stats`) backed by a
+privacy-gated pool of free Tier-A models (proxy at 127.0.0.1:4000). The council is a **second opinion, not the
 driver** — you (Claude) remain the primary reasoner.
 
 - `ask(prompt, model?, capability?, sensitivity?)` — one best-fit model. Default
@@ -16,6 +16,8 @@ driver** — you (Claude) remain the primary reasoner.
   or `model` for a specific member).
 - `council(prompt, sensitivity?)` — fan out to diverse models + aggregate. Use for
   high-stakes cross-checks where diverse errors matter (costs more free-tier RPD).
+- `stats()` — today's per-member usage (requests, tokens) vs daily caps; use to check
+  headroom before a heavy `council` call.
 - **Privacy:** always set `sensitivity`. Default `sensitive` (Tier-A only). Use
   `public` only for generic/published questions. **Never** send secrets/.env/credentials
   to any free tier — the gate refuses obvious secrets, but strip them yourself first.
