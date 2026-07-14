@@ -56,6 +56,76 @@ model_list:
       privacy_tier: A
       scores: {general: 3, fast: 3}
       tpd: 10000
+  # --- Phase 2c additions. Model IDs provisional; validated live in Task 9. ---
+  # GitHub Models — documented no-train => Tier A (GPT-class safe tier win).
+  - model_name: council/github-gpt-4.1
+    litellm_params:
+      model: github/gpt-4.1
+      api_key: os.environ/GITHUB_API_KEY
+      rpm: 10
+    model_info:
+      privacy_tier: A
+      scores: {general: 5, code: 5, reasoning: 4}
+      rpd: 50
+  - model_name: council/github-o4-mini
+    litellm_params:
+      model: github/o4-mini
+      api_key: os.environ/GITHUB_API_KEY
+      rpm: 10
+    model_info:
+      privacy_tier: A
+      scores: {reasoning: 5, fast: 4, code: 4, general: 3}
+      rpd: 50
+  # Tier B — free tier trains/retains or undocumented => public prompts only.
+  - model_name: council/mistral-large
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: os.environ/MISTRAL_API_KEY
+      rpm: 6
+    model_info:
+      privacy_tier: B
+      scores: {reasoning: 4, general: 4, code: 3}
+  - model_name: council/mistral-codestral
+    litellm_params:
+      model: mistral/codestral-latest
+      api_key: os.environ/MISTRAL_API_KEY
+      rpm: 6
+    model_info:
+      privacy_tier: B
+      scores: {code: 5, fast: 4, general: 3}
+  - model_name: council/sambanova-llama-405b
+    litellm_params:
+      model: sambanova/Meta-Llama-3.1-405B-Instruct
+      api_key: os.environ/SAMBANOVA_API_KEY
+      rpm: 10
+    model_info:
+      privacy_tier: B
+      scores: {reasoning: 4, general: 4, code: 3}
+  - model_name: council/sambanova-llama-70b
+    litellm_params:
+      model: sambanova/Meta-Llama-3.3-70B-Instruct
+      api_key: os.environ/SAMBANOVA_API_KEY
+      rpm: 10
+    model_info:
+      privacy_tier: B
+      scores: {fast: 5, general: 3, code: 3}
+  # NVIDIA NIM — no key this phase; key-presence activation keeps these dormant.
+  - model_name: council/nvidia-deepseek-r1
+    litellm_params:
+      model: nvidia_nim/deepseek-ai/deepseek-r1
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      rpm: 10
+    model_info:
+      privacy_tier: B
+      scores: {reasoning: 5, general: 3}
+  - model_name: council/nvidia-llama-70b
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.3-70b-instruct
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+      rpm: 10
+    model_info:
+      privacy_tier: B
+      scores: {general: 3, code: 3, fast: 4}
 router_settings:
   num_retries: 1
 general_settings:

@@ -9,14 +9,24 @@ def _members():
     return {m.alias: m for m in registry.load_members(CONFIG)}
 
 
-def test_loads_all_five_members():
+def test_loads_all_thirteen_members():
     assert set(_members()) == {
-        "council/cerebras-glm-4.7",
-        "council/cerebras-gpt-oss-120b",
-        "council/groq-llama-70b",
-        "council/groq-gpt-oss-120b",
+        "council/cerebras-glm-4.7", "council/cerebras-gpt-oss-120b",
+        "council/groq-llama-70b", "council/groq-gpt-oss-120b",
         "council/cloudflare-llama-70b",
+        "council/github-gpt-4.1", "council/github-o4-mini",
+        "council/mistral-large", "council/mistral-codestral",
+        "council/sambanova-llama-405b", "council/sambanova-llama-70b",
+        "council/nvidia-deepseek-r1", "council/nvidia-llama-70b",
     }
+
+
+def test_tier_b_providers_tagged_b():
+    m = _members()
+    for alias in ["council/mistral-large", "council/sambanova-llama-405b",
+                  "council/nvidia-deepseek-r1"]:
+        assert m[alias].privacy_tier == "B"
+    assert m["council/github-gpt-4.1"].privacy_tier == "A"
 
 
 def test_capabilities_and_scores_parsed():
