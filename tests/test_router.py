@@ -1,6 +1,9 @@
 import asyncio
 
+import pytest
+
 from council import router
+from council.errors import NoEligibleMember
 from council.types import Member
 
 STRONG = Member("strong", "A", ("reasoning", "general"), 5, 5)
@@ -20,10 +23,6 @@ def test_select_tie_breaks_on_rpm():
 
 
 def test_select_raises_when_no_capability():
-    import pytest
-
-    from council.errors import NoEligibleMember
-
     with pytest.raises(NoEligibleMember):
         router.select(MEMBERS, "vision")
 
@@ -49,9 +48,5 @@ def test_rank_orders_by_strength_then_rpm():
 
 
 def test_rank_raises_when_no_capability():
-    import pytest
-
-    from council.errors import NoEligibleMember
-
     with pytest.raises(NoEligibleMember):
         router.rank(MEMBERS, "vision")

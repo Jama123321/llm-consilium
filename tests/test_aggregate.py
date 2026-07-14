@@ -34,6 +34,39 @@ def test_judge_on_open_ended():
     assert mode == "judge" and out == "Merged best answer." and "scope" in dis and judge == "chair"
 
 
+def test_judge_without_disagreements_marker():
+    ans = _answers(
+        ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
+        ("m2", True, "Another multi sentence answer with different emphasis entirely."),
+    )
+
+    async def caller(alias, prompt):
+        return "Just a merged answer with several words here."
+
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=caller, judge_aliases=["chair"])
+    )
+    assert mode == "judge" and dis == ""
+    assert out == "Just a merged answer with several words here."
+
+
+def test_judge_traverses_multiple_failures_in_order():
+    ans = _answers(
+        ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
+        ("m2", True, "Another multi sentence answer with different emphasis entirely."),
+    )
+
+    async def caller(alias, prompt):
+        if alias in ("j1", "j2"):
+            raise MemberCallError(alias, "429 rate-limited")
+        return "Third judge merge.\nDISAGREEMENTS: candidates differed on emphasis."
+
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=caller, judge_aliases=["j1", "j2", "j3"])
+    )
+    assert mode == "judge" and judge == "j3"
+
+
 def test_judge_falls_back_to_next_judge():
     ans = _answers(
         ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
