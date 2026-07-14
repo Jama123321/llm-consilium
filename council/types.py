@@ -14,6 +14,8 @@ class Member:
     capabilities: tuple[str, ...]
     strength: int
     rpm: int
+    rpd: int | None = None
+    tpd: int | None = None
 
 
 @dataclass(frozen=True)

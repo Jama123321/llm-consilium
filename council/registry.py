@@ -13,6 +13,8 @@ def load_members(config_path: str | Path) -> list[Member]:
     for entry in data.get("model_list", []):
         info = entry.get("model_info") or {}
         params = entry.get("litellm_params") or {}
+        rpd = info.get("rpd")
+        tpd = info.get("tpd")
         members.append(
             Member(
                 alias=entry["model_name"],
@@ -20,6 +22,8 @@ def load_members(config_path: str | Path) -> list[Member]:
                 capabilities=tuple(info.get("capabilities", ["general"])),
                 strength=int(info.get("strength", 1)),
                 rpm=int(params.get("rpm", 10)),
+                rpd=int(rpd) if rpd is not None else None,
+                tpd=int(tpd) if tpd is not None else None,
             )
         )
     return members
