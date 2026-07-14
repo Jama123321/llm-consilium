@@ -16,8 +16,7 @@ model_list:
       rpm: 5
     model_info:
       privacy_tier: A
-      strength: 5
-      capabilities: [reasoning, general, code]
+      scores: {reasoning: 5, code: 4, general: 4}
       tpd: 1000000
   - model_name: council/cerebras-gpt-oss-120b
     litellm_params:
@@ -26,8 +25,7 @@ model_list:
       rpm: 5
     model_info:
       privacy_tier: A
-      strength: 4
-      capabilities: [reasoning, code, general]
+      scores: {reasoning: 4, code: 4, general: 4}
       tpd: 1000000
   - model_name: council/groq-llama-70b
     litellm_params:
@@ -36,8 +34,7 @@ model_list:
       rpm: 30
     model_info:
       privacy_tier: A
-      strength: 3
-      capabilities: [general, fast, code]
+      scores: {general: 3, fast: 3, code: 3}
       rpd: 1000
   # Groq free tier: does NOT train on prompts (the Tier-A criterion); default keeps
   # 7-day operational logs — full zero-retention needs ZDR (later action, non-blocking).
@@ -48,8 +45,7 @@ model_list:
       rpm: 30
     model_info:
       privacy_tier: A
-      strength: 4
-      capabilities: [reasoning, code, general, fast]
+      scores: {reasoning: 4, code: 4, general: 4, fast: 4}
       rpd: 1000
   - model_name: council/cloudflare-llama-70b
     litellm_params:
@@ -58,8 +54,7 @@ model_list:
       api_key: os.environ/CLOUDFLARE_API_TOKEN
     model_info:
       privacy_tier: A
-      strength: 3
-      capabilities: [general, fast]
+      scores: {general: 3, fast: 3}
       tpd: 10000
 router_settings:
   num_retries: 1

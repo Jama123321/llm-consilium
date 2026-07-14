@@ -4,8 +4,8 @@ from council import fanout
 from council.errors import MemberCallError
 from council.types import Member
 
-M1 = Member("m1", "A", ("general",), 3, 5)
-M2 = Member("m2", "A", ("general",), 3, 5)
+M1 = Member("m1", "A", {"general": 3}, 5, "m1")
+M2 = Member("m2", "A", {"general": 3}, 5, "m2")
 
 
 def test_all_ok():

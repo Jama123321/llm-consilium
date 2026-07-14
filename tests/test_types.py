@@ -13,9 +13,16 @@ from council.types import AskResult, CouncilResult, Member, MemberAnswer
 
 
 def test_member_is_frozen():
-    m = Member(alias="a", privacy_tier="A", capabilities=("general",), strength=3, rpm=5)
+    m = Member(alias="a", privacy_tier="A", scores={"general": 3}, rpm=5)
     with pytest.raises(dataclasses.FrozenInstanceError):
-        m.strength = 4
+        m.rpm = 4
+
+
+def test_member_scores_and_derived_props():
+    m = Member(alias="a", privacy_tier="A", scores={"general": 3, "code": 4}, rpm=5)
+    assert m.capabilities == ("general", "code")
+    assert m.strength == 4
+    assert m.provider_family == "" and m.rpd is None and m.tpd is None
 
 
 def test_result_types_construct():

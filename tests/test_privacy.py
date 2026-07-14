@@ -4,8 +4,8 @@ from council import privacy
 from council.errors import PrivacyRefusal
 from council.types import Member
 
-A = Member("a", "A", ("general",), 3, 5)
-B = Member("b", "B", ("general",), 3, 5)
+A = Member("a", "A", {"general": 3}, 5, "a")
+B = Member("b", "B", {"general": 3}, 5, "b")
 
 
 def test_scan_passes_clean_prompt():

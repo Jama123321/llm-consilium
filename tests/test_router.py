@@ -6,9 +6,9 @@ from council import router
 from council.errors import NoEligibleMember
 from council.types import Member
 
-STRONG = Member("strong", "A", ("reasoning", "general"), 5, 5)
-FAST = Member("fast", "A", ("fast", "general"), 3, 30)
-CODER = Member("coder", "A", ("code",), 4, 10)
+STRONG = Member("strong", "A", {"reasoning": 5, "general": 5}, 5, "s")
+FAST = Member("fast", "A", {"fast": 3, "general": 3}, 30, "f")
+CODER = Member("coder", "A", {"code": 4}, 10, "c")
 MEMBERS = [STRONG, FAST, CODER]
 
 
@@ -17,8 +17,8 @@ def test_select_picks_highest_strength_with_capability():
 
 
 def test_select_tie_breaks_on_rpm():
-    a = Member("a", "A", ("general",), 3, 5)
-    b = Member("b", "A", ("general",), 3, 30)
+    a = Member("a", "A", {"general": 3}, 5, "a")
+    b = Member("b", "A", {"general": 3}, 30, "b")
     assert router.select([a, b], "general") is b
 
 

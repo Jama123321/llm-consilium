@@ -1,9 +1,9 @@
 from council import usage
 from council.types import Member
 
-CAPPED_REQ = Member("r", "A", ("general",), 3, 5, rpd=2, tpd=None)
-CAPPED_TOK = Member("t", "A", ("general",), 3, 5, rpd=None, tpd=100)
-UNCAPPED = Member("u", "A", ("general",), 3, 5)
+CAPPED_REQ = Member("r", "A", {"general": 3}, 5, "r", rpd=2, tpd=None)
+CAPPED_TOK = Member("t", "A", {"general": 3}, 5, "t", rpd=None, tpd=100)
+UNCAPPED = Member("u", "A", {"general": 3}, 5, "u")
 
 
 def test_record_and_counts_roundtrip(tmp_path):

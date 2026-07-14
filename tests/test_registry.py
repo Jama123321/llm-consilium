@@ -19,11 +19,32 @@ def test_loads_all_five_members():
     }
 
 
-def test_capabilities_and_strength_parsed():
+def test_capabilities_and_scores_parsed():
     glm = _members()["council/cerebras-glm-4.7"]
     assert glm.privacy_tier == "A"
+    assert glm.scores["reasoning"] == 5
     assert glm.strength == 5
     assert "reasoning" in glm.capabilities
+
+
+def test_provider_family_derived():
+    m = _members()
+    assert m["council/cerebras-glm-4.7"].provider_family == "cerebras"
+    assert m["council/groq-gpt-oss-120b"].provider_family == "groq"
+    assert m["council/cloudflare-llama-70b"].provider_family == "cloudflare"
+
+
+def test_legacy_strength_capabilities_synthesized(tmp_path):
+    cfg = tmp_path / "legacy.yaml"
+    cfg.write_text(
+        "model_list:\n"
+        "  - model_name: council/legacy\n"
+        "    litellm_params: {model: groq/x, rpm: 7}\n"
+        "    model_info: {privacy_tier: A, strength: 4, capabilities: [reasoning, code]}\n"
+    )
+    m = {x.alias: x for x in registry.load_members(cfg)}["council/legacy"]
+    assert m.scores == {"reasoning": 4, "code": 4}
+    assert m.strength == 4 and m.provider_family == "groq"
 
 
 def test_rpm_defaults_when_absent():
