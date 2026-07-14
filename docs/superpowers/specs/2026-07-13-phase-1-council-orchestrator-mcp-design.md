@@ -22,9 +22,13 @@ software:
   orchestrator`, provable via a live smoke script.
 - **1b — Surface:** the MCP server exposing `ask`/`council`, plus the usage rule in
   `~/.claude/CLAUDE.md`.
+- **1c — Resilience:** rate-limit fallback for `ask` and the judge, so hitting a free
+  provider's RPM/quota degrades gracefully instead of erroring (added after the live
+  1a smoke repeatedly hit Cerebras's ~5 RPM cap). See §13.
 
-**Out of scope (later phases):** adding Tier-B providers, systemd always-on service,
-quota telemetry, 1-round debate aggregation.
+**Out of scope (later phases — now "Phase 2 · Deployment hardening"):** adding Tier-B
+providers, systemd always-on service, quota/RPD telemetry + daily member rotation,
+exponential backoff, 1-round debate aggregation. See the phase map in §14.
 
 ## 2. Decisions locked this session
 
@@ -254,3 +258,48 @@ Phase 0's healthcheck), not part of CI. Hard gate: `ruff` clean + `pytest` green
 - Classifier and chair models are configurable constants; revisit if Groq/ Cerebras
   limits bite.
 - Debate (1-round) aggregation and Tier-B members are deferred to later phases.
+
+## 13. Resilience — rate-limit fallback (sub-wave 1c)
+
+Free tiers 429 often (Cerebras ~5 RPM was hit repeatedly during the live 1a smoke).
+A limit-hit already becomes a typed `MemberCallError("429 rate-limited")` at the client,
+and in `council` a fan-out member that 429s simply abstains. Two gaps remain, closed here:
+
+**A. `ask` fallback (auto/capability modes only).**
+- `router.rank(members, capability) -> list[Member]` returns every eligible member sorted
+  by `(strength, rpm)` descending (raises `NoEligibleMember` if none). `select` becomes
+  `rank(...)[0]`.
+- `Orchestrator.ask` iterates the ranked candidates: on `MemberCallError` from one, it
+  records the failure and tries the next; the first success returns, with the fallback
+  trail in `note` (e.g. `auto-routed: reasoning -> glm-4.7[429 rate-limited] -> groq-gpt-oss-120b`).
+  If every candidate fails → `AllMembersFailed`.
+- **Direct `model=` does NOT fall back** — naming a model means you want that model; its
+  failure surfaces as the typed error.
+
+**B. Judge fallback (`council`).**
+- `aggregate.aggregate(prompt, answers, *, caller, judge_aliases: list[str]) ->
+  (answer, mode, disagreements, judge_used)` (was a 3-tuple with a single `judge_alias`).
+  It tries each judge alias in order; the first success → `mode="judge"`, `judge_used=<alias>`.
+  If **every** judge call fails → **best-single fallback**: return the most substantive ok
+  answer (`max(ok, key=len)`), `mode="best-single"`, `judge_used=None`. Vote path unchanged
+  (`mode="vote"`, `judge_used=None`).
+- `Orchestrator.council` builds the judge order = chair first, then the remaining chosen
+  members by descending `strength`, and passes it to `aggregate`. `CouncilResult.mode` is
+  now one of `{"vote","judge","best-single"}`.
+
+Deferred to Phase 2 (deployment hardening): exponential backoff on 429, per-member RPD
+counters + daily rotation, quota telemetry.
+
+## 14. Phase map (orientation)
+
+The original SUPERPROMPT numbered phases 0–3 with Phase 1 = council and Phase 2 = MCP.
+Shipping MCP immediately merged those into a single **Phase 1**, so the numbering is
+re-based:
+
+- **Phase 0 — Compute** ✅ (proxy + 3 Tier-A providers; merged to `main`, pushed).
+- **Phase 1 — Council + MCP** (this spec): sub-waves 1a engine · 1b MCP + protocol · 1c
+  resilience.
+- **Phase 2 — Deployment hardening** (formerly Phase 3): systemd always-on, RPD/quota
+  telemetry + rotation, backoff, additional providers (incl. Tier-B under the gate).
+
+CLAUDE.md / SUPERPROMPT phase wording is reconciled to this map in sub-wave 1b's docs task.

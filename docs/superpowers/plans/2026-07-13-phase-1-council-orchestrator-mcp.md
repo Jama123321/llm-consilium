@@ -1189,7 +1189,7 @@ git commit -m "feat: add council orchestrator (ask + council) and live smoke scr
 
 ---
 
-## Sub-wave 1b — MCP surface + protocol (Tasks 9–10)
+## Sub-wave 1b — MCP surface (Task 9) + protocol/close (Task 12)
 
 ### Task 9: MCP server (`ask` + `council` tools)
 
@@ -1361,7 +1361,335 @@ git commit -m "feat: add consilium MCP server exposing ask and council tools"
 
 ---
 
-### Task 10: Usage protocol, README, registration, final gate
+## Sub-wave 1c — Resilience: rate-limit fallback (Tasks 10–11)
+
+These tasks MODIFY existing engine modules (`router.py`, `orchestrator.py`, `aggregate.py`) and their tests. Design basis: spec §13.
+
+### Task 10: `ask` fallback across ranked members
+
+**Files:**
+- Modify: `council/router.py`, `council/orchestrator.py`
+- Test: `tests/test_router.py`, `tests/test_orchestrator.py`
+
+**Interfaces:**
+- Produces: `router.rank(members, capability) -> list[Member]` (eligible, sorted by `(strength, rpm)` desc; raises `NoEligibleMember` if none); `select` becomes `rank(...)[0]`. `Orchestrator.ask` auto/capability paths iterate ranked candidates, falling back on `MemberCallError`, raising `AllMembersFailed` if all fail; direct `model=` does not fall back.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `tests/test_router.py`:
+```python
+def test_rank_orders_by_strength_then_rpm():
+    assert [m.alias for m in router.rank(MEMBERS, "general")] == ["strong", "fast"]
+
+
+def test_rank_raises_when_no_capability():
+    import pytest
+
+    from council.errors import NoEligibleMember
+
+    with pytest.raises(NoEligibleMember):
+        router.rank(MEMBERS, "vision")
+```
+
+Add to `tests/test_orchestrator.py` — first extend the errors import line to:
+```python
+from council.errors import AllMembersFailed, MemberCallError, PrivacyRefusal
+```
+then append:
+```python
+def test_ask_auto_falls_back_on_rate_limit():
+    class FB:
+        async def __call__(self, alias, prompt):
+            if "Classify" in prompt:
+                return "reasoning"
+            if alias == "council/cerebras-glm-4.7":
+                raise MemberCallError(alias, "429 rate-limited")
+            return "fallback answer"
+
+    r = asyncio.run(_orch(FB()).ask("prove a theorem"))
+    assert r.model_used == "council/groq-gpt-oss-120b"
+    assert "429" in r.note
+
+
+def test_ask_raises_all_members_failed_when_all_rate_limited():
+    class AllFail:
+        async def __call__(self, alias, prompt):
+            if "Classify" in prompt:
+                return "reasoning"
+            raise MemberCallError(alias, "429 rate-limited")
+
+    with pytest.raises(AllMembersFailed):
+        asyncio.run(_orch(AllFail()).ask("x"))
+```
+
+- [ ] **Step 2: Run to verify they fail**
+
+Run: `.venv/bin/pytest tests/test_router.py tests/test_orchestrator.py -q`
+Expected: FAIL — `router.rank` missing; `ask` does not fall back.
+
+- [ ] **Step 3: Add `rank` and re-express `select` in `council/router.py`**
+
+Replace the `select` function at the end of `council/router.py` with:
+```python
+def rank(members: list[Member], capability: str) -> list[Member]:
+    candidates = [m for m in members if capability in m.capabilities]
+    if not candidates:
+        raise NoEligibleMember(f"no member has capability '{capability}'")
+    return sorted(candidates, key=lambda m: (m.strength, m.rpm), reverse=True)
+
+
+def select(members: list[Member], capability: str) -> Member:
+    return rank(members, capability)[0]
+```
+
+- [ ] **Step 4: Update `council/orchestrator.py` imports and `ask`**
+
+Change the errors import to:
+```python
+from council.errors import AllMembersFailed, MemberCallError, NoEligibleMember, PrivacyRefusal
+```
+Replace the entire `ask` method with:
+```python
+    async def ask(
+        self, prompt: str, *, model: str | None = None, capability: str | None = None,
+        sensitivity: str = "sensitive",
+    ) -> AskResult:
+        privacy.scan_secrets(prompt)
+        allowed = privacy.allowed_members(self._members, sensitivity)
+        if model is not None:
+            member = self._by_alias(model)
+            if member is None or member not in allowed:
+                raise PrivacyRefusal(
+                    f"model {model} is not available for sensitivity={sensitivity}"
+                )
+            answer = await self._caller(member.alias, prompt)
+            return AskResult(answer=answer, model_used=member.alias, capability=None, note="direct")
+        auto = capability is None
+        if auto:
+            capability = await router.classify(
+                prompt, caller=self._caller, classifier_alias=self._classifier_alias
+            )
+        errors: list[str] = []
+        for member in router.rank(allowed, capability):
+            try:
+                answer = await self._caller(member.alias, prompt)
+            except MemberCallError as exc:
+                errors.append(f"{member.alias}[{exc.detail}]")
+                continue
+            trail = " -> ".join([*errors, member.alias])
+            note = f"{'auto-routed' if auto else 'routed'}: {capability} -> {trail}"
+            return AskResult(
+                answer=answer, model_used=member.alias, capability=capability, note=note
+            )
+        raise AllMembersFailed(f"all '{capability}' members failed: {', '.join(errors)}")
+```
+
+- [ ] **Step 5: Run to verify pass**
+
+Run: `.venv/bin/pytest tests/test_router.py tests/test_orchestrator.py -q`
+Expected: PASS (router 7, orchestrator 6).
+
+- [ ] **Step 6: Lint & commit**
+
+```bash
+.venv/bin/ruff check .
+git add council/router.py council/orchestrator.py tests/test_router.py tests/test_orchestrator.py
+git commit -m "feat: fall back across ranked members when ask hits a rate limit"
+```
+
+---
+
+### Task 11: Judge fallback + best-single aggregation
+
+**Files:**
+- Modify: `council/aggregate.py`, `council/orchestrator.py`
+- Test: `tests/test_aggregate.py` (rewrite), `tests/test_orchestrator.py` (unchanged — verifies via existing council test)
+
+**Interfaces:**
+- Produces: `aggregate.aggregate(prompt, answers, *, caller, judge_aliases: list[str]) -> tuple[str, str, str, str | None]` returning `(answer, mode, disagreements, judge_used)`, `mode ∈ {"vote","judge","best-single"}`. `Orchestrator.council` builds the judge order (chair first, then remaining chosen members by descending strength) via `_judge_order`.
+
+- [ ] **Step 1: Rewrite the failing test `tests/test_aggregate.py`**
+
+```python
+import asyncio
+
+import pytest
+
+from council import aggregate
+from council.errors import AllMembersFailed, MemberCallError
+from council.types import MemberAnswer
+
+
+def _answers(*pairs):
+    return [MemberAnswer(a, ok=ok, answer=ans, detail="ok" if ok else "x") for a, ok, ans in pairs]
+
+
+async def _judge(alias, prompt):
+    return "Merged best answer.\nDISAGREEMENTS: candidate 2 differed on scope."
+
+
+def test_vote_on_closed_form():
+    ans = _answers(("m1", True, "Yes"), ("m2", True, "yes"), ("m3", True, "No"))
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=_judge, judge_aliases=["chair"])
+    )
+    assert mode == "vote" and out == "yes" and dis == "" and judge is None
+
+
+def test_judge_on_open_ended():
+    ans = _answers(
+        ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
+        ("m2", True, "Another multi sentence answer with different emphasis entirely."),
+    )
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=_judge, judge_aliases=["chair"])
+    )
+    assert mode == "judge" and out == "Merged best answer." and "scope" in dis and judge == "chair"
+
+
+def test_judge_falls_back_to_next_judge():
+    ans = _answers(
+        ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
+        ("m2", True, "Another multi sentence answer with different emphasis entirely."),
+    )
+
+    async def caller(alias, prompt):
+        if alias == "chair":
+            raise MemberCallError("chair", "429 rate-limited")
+        return "Backup merge.\nDISAGREEMENTS: none"
+
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=caller, judge_aliases=["chair", "backup"])
+    )
+    assert mode == "judge" and judge == "backup" and out == "Backup merge."
+
+
+def test_best_single_when_all_judges_fail():
+    ans = _answers(
+        ("m1", True, "short one"),
+        ("m2", True, "A much longer and more substantive candidate answer here indeed."),
+    )
+
+    async def caller(alias, prompt):
+        raise MemberCallError(alias, "429 rate-limited")
+
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=caller, judge_aliases=["chair", "backup"])
+    )
+    assert mode == "best-single" and judge is None
+    assert out == "A much longer and more substantive candidate answer here indeed."
+
+
+def test_all_failed_raises():
+    ans = _answers(("m1", False, None), ("m2", False, None))
+    with pytest.raises(AllMembersFailed):
+        asyncio.run(aggregate.aggregate("q", ans, caller=_judge, judge_aliases=["chair"]))
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `.venv/bin/pytest tests/test_aggregate.py -q`
+Expected: FAIL — `aggregate` still takes `judge_alias` and returns a 3-tuple.
+
+- [ ] **Step 3: Rewrite `council/aggregate.py`**
+
+```python
+from __future__ import annotations
+
+from collections import Counter
+
+from council.errors import AllMembersFailed, MemberCallError
+from council.types import AsyncCaller, MemberAnswer
+
+_JUDGE_PROMPT = (
+    "You are the chair of a council. Below are {n} candidate answers to the same "
+    "question. Produce the single best merged answer, then a final line starting with "
+    "'DISAGREEMENTS:' noting where candidates differed (or 'none').\n\n"
+    "Question:\n{prompt}\n\nCandidates:\n{candidates}"
+)
+
+
+def _looks_closed_form(answers: list[str]) -> bool:
+    return all(len(a.strip().lower().rstrip(".!").split()) <= 3 for a in answers)
+
+
+def _majority(answers: list[str]) -> str:
+    norm = [a.strip().lower().rstrip(".!") for a in answers]
+    return Counter(norm).most_common(1)[0][0]
+
+
+async def aggregate(
+    prompt: str, answers: list[MemberAnswer], *, caller: AsyncCaller, judge_aliases: list[str]
+) -> tuple[str, str, str, str | None]:
+    ok = [a.answer for a in answers if a.ok and a.answer is not None]
+    if not ok:
+        raise AllMembersFailed("every member abstained")
+    if _looks_closed_form(ok):
+        return _majority(ok), "vote", "", None
+    candidates = "\n".join(f"[{i + 1}] {a}" for i, a in enumerate(ok))
+    for judge_alias in judge_aliases:
+        try:
+            merged = await caller(
+                judge_alias,
+                _JUDGE_PROMPT.format(n=len(ok), prompt=prompt, candidates=candidates),
+            )
+        except MemberCallError:
+            continue
+        disagreements = ""
+        if "DISAGREEMENTS:" in merged:
+            merged, _, disagreements = merged.partition("DISAGREEMENTS:")
+        return merged.strip(), "judge", disagreements.strip(), judge_alias
+    return max(ok, key=len), "best-single", "", None
+```
+
+- [ ] **Step 4: Update `council/orchestrator.py` `council` + add `_judge_order`**
+
+Replace the entire `council` method with:
+```python
+    async def council(
+        self, prompt: str, *, members: tuple[str, ...] | None = None, sensitivity: str = "sensitive"
+    ) -> CouncilResult:
+        privacy.scan_secrets(prompt)
+        allowed = privacy.allowed_members(self._members, sensitivity)
+        wanted = members or self._default_member_aliases
+        chosen = [m for m in allowed if m.alias in wanted]
+        if not chosen:
+            raise NoEligibleMember("no eligible council members for this sensitivity")
+        answers = await fanout.fan_out(prompt, chosen, self._caller)
+        merged, mode, disagreements, judge_used = await agg.aggregate(
+            prompt, answers, caller=self._caller, judge_aliases=self._judge_order(chosen)
+        )
+        return CouncilResult(
+            answer=merged, per_member=answers, disagreements=disagreements,
+            judge_used=judge_used, mode=mode,
+        )
+
+    def _judge_order(self, chosen: list[Member]) -> list[str]:
+        rest = sorted(
+            (m for m in chosen if m.alias != self._chair_alias),
+            key=lambda m: m.strength, reverse=True,
+        )
+        return [self._chair_alias, *(m.alias for m in rest)]
+```
+
+- [ ] **Step 5: Run to verify pass**
+
+Run: `.venv/bin/pytest tests/test_aggregate.py tests/test_orchestrator.py -q`
+Expected: PASS (aggregate 5; orchestrator's existing council test still green — chair is first judge and succeeds → `mode="judge"`, `judge_used="council/cerebras-glm-4.7"`).
+
+- [ ] **Step 6: Full gate, lint & commit**
+
+```bash
+.venv/bin/ruff check . && .venv/bin/pytest -q
+git add council/aggregate.py council/orchestrator.py tests/test_aggregate.py
+git commit -m "feat: fall back across judges and to best-single answer under rate limits"
+```
+
+---
+
+## Sub-wave 1b — close (Task 12)
+
+### Task 12: Usage protocol, README, registration, final gate
 
 **Files:**
 - Create: `docs/usage-rule.md`, `council/README.md`
@@ -1396,6 +1724,10 @@ driver** — you (Claude) remain the primary reasoner.
   `public` only for generic/published questions. **Never** send secrets/.env/credentials
   to any free tier — the gate refuses obvious secrets, but strip them yourself first.
 - **Rate hygiene:** prefer `ask`; reserve `council` for when a cross-check is worth it.
+- **Rate limits degrade gracefully:** if a free model is rate-limited, `ask` falls back
+  to the next-best model automatically, and `council` drops the limited voter (and falls
+  back to another judge, or the best single answer). A `note`/`mode` field records what
+  happened. Only if *every* eligible model is exhausted does a call error out.
 ```
 
 ## Registering the MCP server (once, global)
@@ -1432,9 +1764,9 @@ See `docs/usage-rule.md` for the `claude mcp add --scope user` command and the
 `~/.claude/CLAUDE.md` protocol block.
 ````
 
-- [ ] **Step 3: Update the `CLAUDE.md` structure note**
+- [ ] **Step 3: Update `CLAUDE.md` (structure note + phase reconciliation)**
 
-In `CLAUDE.md`, find the line in the structure diagram:
+3a. In `CLAUDE.md`, find the structure-diagram line:
 ```
 ├── mcp/                         # user-scope MCP server exposing the `council` tool
 ```
@@ -1442,6 +1774,18 @@ Replace with:
 ```
 ├── consilium_mcp/               # user-scope MCP server (not `mcp/` — that shadows the SDK)
 ```
+
+3b. Reconcile the phase numbering (spec §14). In `CLAUDE.md`'s `## Status` section, replace the "Phase 0 not started…" text with a current phase map:
+```
+**Phase 0 (compute) and Phase 1 (council + MCP) complete.** Phase map:
+- Phase 0 — LiteLLM proxy + 3 Tier-A providers (Cerebras/Groq/Cloudflare). Done.
+- Phase 1 — council orchestrator (`ask`/`council`) + user-scope MCP + usage protocol +
+  rate-limit fallback. Done (sub-waves 1a engine · 1b MCP · 1c resilience).
+- Phase 2 — deployment hardening: systemd always-on, RPD/quota telemetry + rotation,
+  backoff, additional providers (incl. Tier-B under the gate). Not started.
+```
+(The originally-separate SUPERPROMPT Phase 1/Phase 2 were merged into this Phase 1;
+old "Phase 3" is now "Phase 2".)
 
 - [ ] **Step 4: Run the full CI-safe gate**
 
@@ -1469,6 +1813,7 @@ git commit -m "docs: add council usage protocol, README, and MCP registration"
 - §9 error handling (typed errors; dead member abstains, never crashes) → errors (T1), fanout abstain (T6), surfaced results (T8). ✓
 - §10 testing (CI-safe fakes; live smoke separate) → every task has CI-safe unit tests; live smoke in T8; gate in T8/T10. ✓
 - §11 acceptance → covered across T8 (ask/council/gate) and T10 (registration doc + final gate). ✓
+- §13 resilience (ask fallback via `router.rank`; judge fallback + best-single; direct `model=` no fallback) → T10 (`test_ask_auto_falls_back...`) + T11 (`test_judge_falls_back...`, `test_best_single...`). ✓
 
 **Placeholder scan:** No TBD/TODO; every code step shows full content; version specifiers are bounded ranges. ✓
 
