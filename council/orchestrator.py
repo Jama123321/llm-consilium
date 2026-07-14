@@ -121,7 +121,7 @@ class Orchestrator:
 def build(
     config_path: str = "proxy/config.yaml", *, base_url: str = DEFAULT_BASE_URL, api_key: str
 ) -> Orchestrator:
-    members = registry.load_members(config_path)
+    members = registry.load_members(config_path, available_keys=registry.available_env_keys())
     store = usage.UsageStore()
     caller = client.make_caller(base_url, api_key, recorder=store.record)
     return Orchestrator(members, caller, store=store)

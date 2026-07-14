@@ -69,3 +69,28 @@ def test_daily_caps_parsed():
     assert m["council/cloudflare-llama-70b"].tpd == 10000
     assert m["council/cloudflare-llama-70b"].rpd is None
     assert m["council/cerebras-glm-4.7"].tpd == 1000000
+
+
+def test_available_env_keys_reads_process_and_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("FOO_KEY", "x")
+    monkeypatch.delenv("BAR_KEY", raising=False)
+    env = tmp_path / ".env"
+    env.write_text("BAR_KEY=y\nEMPTY_KEY=\n# comment\n")
+    keys = registry.available_env_keys(env)
+    assert "FOO_KEY" in keys and "BAR_KEY" in keys
+    assert "EMPTY_KEY" not in keys
+
+
+def test_load_members_filters_missing_keys():
+    # Only Cerebras/Groq keys "available" -> Cloudflare + all Tier-B drop out.
+    keys = {"CEREBRAS_API_KEY", "GROQ_API_KEY"}
+    aliases = {m.alias for m in registry.load_members(CONFIG, available_keys=keys)}
+    assert "council/cerebras-glm-4.7" in aliases
+    assert "council/groq-llama-70b" in aliases
+    assert "council/cloudflare-llama-70b" not in aliases  # needs CLOUDFLARE_*
+    assert "council/mistral-large" not in aliases
+    assert "council/nvidia-deepseek-r1" not in aliases
+
+
+def test_load_members_no_filter_returns_all():
+    assert len(registry.load_members(CONFIG)) == 13
