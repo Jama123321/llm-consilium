@@ -6,7 +6,8 @@ from council.errors import AllMembersFailed, MemberCallError, NoEligibleMember, 
 from council.types import AskResult, AsyncCaller, CouncilResult, Member
 
 DEFAULT_BASE_URL = "http://127.0.0.1:4000/v1"
-CLASSIFIER_ALIAS = "council/groq-llama-70b"
+CLASSIFIER_ALIAS = "council/groq-llama-70b"  # must be Tier-A; used only if within the allowed set
+# must be Tier-A; used as judge only if within the chosen set
 CHAIR_ALIAS = "council/cerebras-glm-4.7"
 DEFAULT_MEMBER_ALIASES = (
     "council/cerebras-glm-4.7",
@@ -34,6 +35,16 @@ class Orchestrator:
     def _by_alias(self, alias: str) -> Member | None:
         return next((m for m in self._members if m.alias == alias), None)
 
+    def _classifier_for(self, allowed: list[Member]) -> str:
+        # The classifier receives the prompt, so it must satisfy the privacy gate too:
+        # use the configured classifier only if it survived the tier filter, else the
+        # fastest allowed member.
+        if not allowed:
+            raise NoEligibleMember("no members available for the requested sensitivity")
+        if any(m.alias == self._classifier_alias for m in allowed):
+            return self._classifier_alias
+        return max(allowed, key=lambda m: m.rpm).alias
+
     async def ask(
         self, prompt: str, *, model: str | None = None, capability: str | None = None,
         sensitivity: str = "sensitive",
@@ -51,7 +62,7 @@ class Orchestrator:
         auto = capability is None
         if auto:
             capability = await router.classify(
-                prompt, caller=self._caller, classifier_alias=self._classifier_alias
+                prompt, caller=self._caller, classifier_alias=self._classifier_for(allowed)
             )
         errors: list[str] = []
         for member in router.rank(allowed, capability):
@@ -86,11 +97,13 @@ class Orchestrator:
         )
 
     def _judge_order(self, chosen: list[Member]) -> list[str]:
-        rest = sorted(
-            (m for m in chosen if m.alias != self._chair_alias),
-            key=lambda m: m.strength, reverse=True,
-        )
-        return [self._chair_alias, *(m.alias for m in rest)]
+        # Judges come only from the already-tier-filtered chosen members, so the chair
+        # is used only when it survived the gate and is part of this council.
+        ordered = [m.alias for m in sorted(chosen, key=lambda m: m.strength, reverse=True)]
+        if self._chair_alias in ordered:
+            ordered.remove(self._chair_alias)
+            ordered.insert(0, self._chair_alias)
+        return ordered
 
 
 def build(

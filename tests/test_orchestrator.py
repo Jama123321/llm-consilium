@@ -84,3 +84,24 @@ def test_ask_raises_all_members_failed_when_all_rate_limited():
 
     with pytest.raises(AllMembersFailed):
         asyncio.run(_orch(AllFail()).ask("x"))
+
+
+def test_classifier_never_a_tier_filtered_member():
+    tierb_classifier = Member("council/tierb-classifier", "B", ("general",), 2, 99)
+    o = Orchestrator([GLM, GROQ, CF, tierb_classifier], Recorder(),
+                     classifier_alias="council/tierb-classifier")
+    asyncio.run(o.ask("a reasoning task"))
+    classify_calls = [alias for alias, prompt in o._caller.calls if "Classify" in prompt]
+    assert classify_calls
+    assert all(a != "council/tierb-classifier" for a in classify_calls)
+
+
+def test_judge_order_excludes_chair_not_in_chosen():
+    order = _orch(Recorder())._judge_order([GROQ, CF])
+    assert "council/cerebras-glm-4.7" not in order
+    assert order[0] == "council/groq-gpt-oss-120b"
+
+
+def test_judge_order_puts_chair_first_when_present():
+    order = _orch(Recorder())._judge_order([GROQ, CF, GLM])
+    assert order[0] == "council/cerebras-glm-4.7"
