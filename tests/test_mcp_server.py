@@ -79,6 +79,14 @@ def test_shape_council_includes_note():
     assert server._shape_council(r)["note"] == "auto: code, k=4"
 
 
+def test_shape_council_includes_confidence():
+    r = CouncilResult(
+        answer="m", per_member=[], disagreements="none", judge_used="council/x",
+        mode="judge", note="", confidence="high",
+    )
+    assert server._shape_council(r)["confidence"] == "high"
+
+
 def test_council_tool_passes_members_and_size(monkeypatch):
     captured = {}
 

@@ -54,6 +54,7 @@ def _shape_council(r: CouncilResult) -> dict:
             for a in r.per_member
         ],
         "note": r.note,
+        "confidence": r.confidence,
     }
 
 
@@ -96,8 +97,10 @@ async def council(
         privacy gate or exhausted are dropped (see `note`).
     size: council size override (else adaptive 3-5 by task type). Ignored when `members`
         is given (its length wins).
-    Returns: {answer, mode, judge_used, disagreements, per_member, note}. `note` records
-        roster decisions (auto capability/size, dropped members, fallbacks).
+    Returns: {answer, mode, judge_used, disagreements, per_member, note, confidence}.
+        `note` records roster decisions (auto capability/size, dropped members,
+        fallbacks). `confidence` (high/medium/low) is the chair's confidence the
+        synthesized answer is correct.
     """
     return _shape_council(
         await _get_orch().council(
