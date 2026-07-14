@@ -238,3 +238,30 @@ def test_parse_ranking_case_insensitive_marker_and_names():
     valid = ["Aardvark", "Basilisk"]
     assert aggregate._parse_ranking("ranking: basilisk, AARDVARK", valid) == [
         "Basilisk", "Aardvark"]
+
+
+def test_jaccard_identical_and_disjoint():
+    assert aggregate._jaccard("the quick brown fox", "the quick brown fox") == 1.0
+    assert aggregate._jaccard("alpha beta", "gamma delta") == 0.0
+
+
+def test_jaccard_partial_and_empty():
+    assert aggregate._jaccard("a b c", "b c d") == 0.5  # |∩|=2 |∪|=4
+    assert aggregate._jaccard("", "") == 1.0
+    assert aggregate._jaccard("x", "") == 0.0
+
+
+def test_mean_pairwise_jaccard():
+    assert aggregate._mean_pairwise_jaccard(["solo"]) == 1.0
+    assert aggregate._mean_pairwise_jaccard(["a b", "a b", "a b"]) == 1.0
+    assert aggregate._mean_pairwise_jaccard(["a", "b", "c"]) == 0.0
+
+
+def test_parse_revision():
+    assert (
+        aggregate._parse_revision("Critique.\nREVISED: my best answer now")
+        == "my best answer now"
+    )
+    assert aggregate._parse_revision("no marker here") is None
+    assert aggregate._parse_revision("revised: lowercase marker works") == "lowercase marker works"
+    assert aggregate._parse_revision("REVISED:    ") is None

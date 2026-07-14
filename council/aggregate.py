@@ -86,6 +86,34 @@ def _parse_ranking(reply: str, valid: list[str]) -> list[str]:
     return order
 
 
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def _jaccard(a: str, b: str) -> float:
+    wa, wb = set(_words(a)), set(_words(b))
+    if not wa and not wb:
+        return 1.0
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def _mean_pairwise_jaccard(answers: list[str]) -> float:
+    if len(answers) < 2:
+        return 1.0
+    pairs = [(i, j) for i in range(len(answers)) for j in range(i + 1, len(answers))]
+    return sum(_jaccard(answers[i], answers[j]) for i, j in pairs) / len(pairs)
+
+
+def _parse_revision(reply: str) -> str | None:
+    m = re.search(r"REVISED:", reply, re.IGNORECASE)
+    if not m:
+        return None
+    revised = reply[m.end() :].strip()
+    return revised or None
+
+
 def _vote(ok: list[str]) -> AggregateResult:
     return AggregateResult(_majority(ok), "vote", "", None, _vote_confidence(ok))
 
