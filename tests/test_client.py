@@ -1,4 +1,5 @@
 import asyncio
+import functools
 
 import httpx
 import pytest
@@ -86,8 +87,6 @@ def test_complete_empty_content_raises_member_call_error():
 
 
 def test_make_caller_binds_base_and_key():
-    import functools
-
     caller = client.make_caller("http://x/v1", "k")
     assert isinstance(caller, functools.partial)
     assert caller.args == ("http://x/v1", "k")

@@ -6,10 +6,11 @@ from council.errors import PrivacyRefusal
 from council.types import Member
 
 _SECRET_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9]{16,}"),
+    re.compile(r"\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9]{16,}"),
     re.compile(r"\bcsk-[A-Za-z0-9]{16,}"),
     re.compile(r"\bgsk_[A-Za-z0-9]{16,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    # line-start contiguous KEY= form; conservative (won't flag "export X=" or "x-api-key:" headers)
     re.compile(r"(?im)^\s*[A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)\s*="),
 )
 

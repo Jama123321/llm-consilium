@@ -16,6 +16,10 @@ async def _call_one(
             return MemberAnswer(member.alias, ok=False, answer=None, detail=exc.detail)
         except (asyncio.TimeoutError, TimeoutError):
             return MemberAnswer(member.alias, ok=False, answer=None, detail="timeout")
+        except Exception as exc:  # noqa: BLE001 - a misbehaving member must not crash the council
+            return MemberAnswer(
+                member.alias, ok=False, answer=None, detail=f"error: {exc.__class__.__name__}"
+            )
         return MemberAnswer(member.alias, ok=True, answer=answer, detail="ok")
 
 

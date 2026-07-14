@@ -16,6 +16,7 @@ def test_scan_passes_clean_prompt():
     "bad",
     [
         "here is my key sk-abcdefghijklmnop12345",
+        "sk-proj-ABCDEFGHIJKLMNOP1234",
         "CEREBRAS csk-abcdefghijklmnop12345",
         "token gsk_abcdefghijklmnop12345",
         "-----BEGIN RSA PRIVATE KEY-----",

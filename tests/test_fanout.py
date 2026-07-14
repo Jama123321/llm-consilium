@@ -28,6 +28,17 @@ def test_one_abstains_on_call_error():
     assert not res["m2"].ok and res["m2"].answer is None and "429" in res["m2"].detail
 
 
+def test_one_abstains_on_unexpected_error():
+    async def caller(alias, prompt):
+        if alias == "m2":
+            raise ValueError("boom")
+        return "ok"
+
+    res = {a.alias: a for a in asyncio.run(fanout.fan_out("q", [M1, M2], caller))}
+    assert res["m1"].ok
+    assert res["m2"].ok is False and "error" in res["m2"].detail
+
+
 def test_slow_member_times_out():
     async def caller(alias, prompt):
         if alias == "m2":

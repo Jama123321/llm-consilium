@@ -20,7 +20,7 @@ class Recorder:
 
     async def __call__(self, alias, prompt):
         self.calls.append((alias, prompt))
-        if "DISAGREEMENTS" in prompt or "chair" in alias:
+        if "DISAGREEMENTS" in prompt:
             return "Merged.\nDISAGREEMENTS: none"
         if "Classify" in prompt:
             return "reasoning"
