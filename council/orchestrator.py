@@ -77,14 +77,20 @@ class Orchestrator:
         if not chosen:
             raise NoEligibleMember("no eligible council members for this sensitivity")
         answers = await fanout.fan_out(prompt, chosen, self._caller)
-        merged, mode, disagreements = await agg.aggregate(
-            prompt, answers, caller=self._caller, judge_alias=self._chair_alias
+        merged, mode, disagreements, judge_used = await agg.aggregate(
+            prompt, answers, caller=self._caller, judge_aliases=self._judge_order(chosen)
         )
-        judge_used = self._chair_alias if mode == "judge" else None
         return CouncilResult(
             answer=merged, per_member=answers, disagreements=disagreements,
             judge_used=judge_used, mode=mode,
         )
+
+    def _judge_order(self, chosen: list[Member]) -> list[str]:
+        rest = sorted(
+            (m for m in chosen if m.alias != self._chair_alias),
+            key=lambda m: m.strength, reverse=True,
+        )
+        return [self._chair_alias, *(m.alias for m in rest)]
 
 
 def build(

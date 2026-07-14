@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from council import aggregate
-from council.errors import AllMembersFailed
+from council.errors import AllMembersFailed, MemberCallError
 from council.types import MemberAnswer
 
 
@@ -17,10 +17,10 @@ async def _judge(alias, prompt):
 
 def test_vote_on_closed_form():
     ans = _answers(("m1", True, "Yes"), ("m2", True, "yes"), ("m3", True, "No"))
-    out, mode, dis = asyncio.run(
-        aggregate.aggregate("q", ans, caller=_judge, judge_alias="chair")
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=_judge, judge_aliases=["chair"])
     )
-    assert mode == "vote" and out == "yes" and dis == ""
+    assert mode == "vote" and out == "yes" and dis == "" and judge is None
 
 
 def test_judge_on_open_ended():
@@ -28,13 +28,46 @@ def test_judge_on_open_ended():
         ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
         ("m2", True, "Another multi sentence answer with different emphasis entirely."),
     )
-    out, mode, dis = asyncio.run(
-        aggregate.aggregate("q", ans, caller=_judge, judge_alias="chair")
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=_judge, judge_aliases=["chair"])
     )
-    assert mode == "judge" and out == "Merged best answer." and "scope" in dis
+    assert mode == "judge" and out == "Merged best answer." and "scope" in dis and judge == "chair"
+
+
+def test_judge_falls_back_to_next_judge():
+    ans = _answers(
+        ("m1", True, "A long detailed explanation of the tradeoffs involved here."),
+        ("m2", True, "Another multi sentence answer with different emphasis entirely."),
+    )
+
+    async def caller(alias, prompt):
+        if alias == "chair":
+            raise MemberCallError("chair", "429 rate-limited")
+        return "Backup merge.\nDISAGREEMENTS: none"
+
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=caller, judge_aliases=["chair", "backup"])
+    )
+    assert mode == "judge" and judge == "backup" and out == "Backup merge."
+
+
+def test_best_single_when_all_judges_fail():
+    ans = _answers(
+        ("m1", True, "short one"),
+        ("m2", True, "A much longer and more substantive candidate answer here indeed."),
+    )
+
+    async def caller(alias, prompt):
+        raise MemberCallError(alias, "429 rate-limited")
+
+    out, mode, dis, judge = asyncio.run(
+        aggregate.aggregate("q", ans, caller=caller, judge_aliases=["chair", "backup"])
+    )
+    assert mode == "best-single" and judge is None
+    assert out == "A much longer and more substantive candidate answer here indeed."
 
 
 def test_all_failed_raises():
     ans = _answers(("m1", False, None), ("m2", False, None))
     with pytest.raises(AllMembersFailed):
-        asyncio.run(aggregate.aggregate("q", ans, caller=_judge, judge_alias="chair"))
+        asyncio.run(aggregate.aggregate("q", ans, caller=_judge, judge_aliases=["chair"]))
