@@ -27,7 +27,10 @@ def test_complete_returns_answer_on_200():
 def test_complete_maps_errors(status, frag):
     with pytest.raises(MemberCallError) as ei:
         asyncio.run(
-            client.complete("http://x/v1", "k", "council/a", "hi", transport=_transport(status))
+            client.complete(
+                "http://x/v1", "k", "council/a", "hi",
+                transport=_transport(status), max_retries=0,
+            )
         )
     assert frag in ei.value.detail
 
@@ -39,7 +42,8 @@ def test_complete_maps_timeout():
     with pytest.raises(MemberCallError) as ei:
         asyncio.run(
             client.complete(
-                "http://x/v1", "k", "council/a", "hi", transport=httpx.MockTransport(handler)
+                "http://x/v1", "k", "council/a", "hi",
+                transport=httpx.MockTransport(handler), max_retries=0,
             )
         )
     assert ei.value.detail == "timeout"
@@ -90,3 +94,56 @@ def test_make_caller_binds_base_and_key():
     caller = client.make_caller("http://x/v1", "k")
     assert isinstance(caller, functools.partial)
     assert caller.args == ("http://x/v1", "k")
+
+
+def test_backoff_retries_5xx_then_succeeds():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(503, json={})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    out = asyncio.run(
+        client.complete(
+            "http://x/v1", "k", "council/a", "hi",
+            transport=httpx.MockTransport(handler), max_retries=2,
+        )
+    )
+    assert out == "ok" and calls["n"] == 2
+
+
+def test_no_retry_on_429():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(429, json={})
+
+    with pytest.raises(MemberCallError):
+        asyncio.run(
+            client.complete(
+                "http://x/v1", "k", "council/a", "hi",
+                transport=httpx.MockTransport(handler), max_retries=2,
+            )
+        )
+    assert calls["n"] == 1
+
+
+def test_recorder_receives_total_tokens():
+    seen = []
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}], "usage": {"total_tokens": 42}},
+        )
+
+    asyncio.run(
+        client.complete(
+            "http://x/v1", "k", "council/a", "hi",
+            transport=httpx.MockTransport(handler), recorder=lambda a, t: seen.append((a, t)),
+        )
+    )
+    assert seen == [("council/a", 42)]
