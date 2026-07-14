@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from council import aggregate as agg
 from council import client, compose, fanout, privacy, registry, router, usage
 from council import runlog as runlog_module
@@ -7,6 +9,9 @@ from council.errors import AllMembersFailed, MemberCallError, NoEligibleMember, 
 from council.types import AskResult, AsyncCaller, CouncilResult, Member
 
 DEFAULT_BASE_URL = "http://127.0.0.1:4000/v1"
+# Absolute so the user-scope MCP server finds the config no matter which project
+# directory Claude Code spawned it from (a relative path breaks cross-project use).
+DEFAULT_CONFIG_PATH = str(Path(__file__).resolve().parents[1] / "proxy" / "config.yaml")
 CLASSIFIER_ALIAS = "council/groq-llama-70b"  # must be Tier-A; used only if within the allowed set
 # must be Tier-A; used as judge only if within the chosen set
 CHAIR_ALIAS = "council/cerebras-glm-4.7"
@@ -184,7 +189,7 @@ class Orchestrator:
 
 
 def build(
-    config_path: str = "proxy/config.yaml", *, base_url: str = DEFAULT_BASE_URL, api_key: str
+    config_path: str | Path = DEFAULT_CONFIG_PATH, *, base_url: str = DEFAULT_BASE_URL, api_key: str
 ) -> Orchestrator:
     members = registry.load_members(config_path, available_keys=registry.available_env_keys())
     store = usage.UsageStore()

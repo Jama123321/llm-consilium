@@ -222,6 +222,18 @@ def test_usage_summary_returns_rows():
     assert rows["council/cerebras-glm-4.7"]["requests"] == 3
 
 
+def test_build_default_config_path_is_absolute_and_cwd_independent(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from council import orchestrator, registry
+    # The user-scope MCP server is spawned from arbitrary project directories; the config
+    # path must resolve regardless of the current working directory.
+    monkeypatch.chdir(tmp_path)
+    assert Path(orchestrator.DEFAULT_CONFIG_PATH).is_absolute()
+    members = registry.load_members(orchestrator.DEFAULT_CONFIG_PATH)  # no key filter -> all
+    assert len(members) == 13  # config found despite the foreign CWD
+
+
 def test_council_logs_run_to_runlog(tmp_path):
     log_path = tmp_path / "runs.jsonl"
     o = Orchestrator(ALL, Recorder(), runlog=RunLog(log_path, enabled=True))
