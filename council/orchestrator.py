@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from council import aggregate as agg
-from council import client, fanout, privacy, registry, router, usage
+from council import client, compose, fanout, privacy, registry, router, usage
 from council.errors import AllMembersFailed, MemberCallError, NoEligibleMember, PrivacyRefusal
 from council.types import AskResult, AsyncCaller, CouncilResult, Member
 
@@ -9,11 +9,6 @@ DEFAULT_BASE_URL = "http://127.0.0.1:4000/v1"
 CLASSIFIER_ALIAS = "council/groq-llama-70b"  # must be Tier-A; used only if within the allowed set
 # must be Tier-A; used as judge only if within the chosen set
 CHAIR_ALIAS = "council/cerebras-glm-4.7"
-DEFAULT_MEMBER_ALIASES = (
-    "council/cerebras-glm-4.7",
-    "council/groq-gpt-oss-120b",
-    "council/cloudflare-llama-70b",
-)
 
 
 class Orchestrator:
@@ -24,14 +19,12 @@ class Orchestrator:
         *,
         classifier_alias: str = CLASSIFIER_ALIAS,
         chair_alias: str = CHAIR_ALIAS,
-        default_member_aliases: tuple[str, ...] = DEFAULT_MEMBER_ALIASES,
         store: usage.UsageStore | None = None,
     ) -> None:
         self._members = members
         self._caller = caller
         self._classifier_alias = classifier_alias
         self._chair_alias = chair_alias
-        self._default_member_aliases = default_member_aliases
         self._store = store
 
     def _by_alias(self, alias: str) -> Member | None:
@@ -88,25 +81,58 @@ class Orchestrator:
         raise AllMembersFailed(f"all '{capability}' members failed: {', '.join(errors)}")
 
     async def council(
-        self, prompt: str, *, members: tuple[str, ...] | None = None, sensitivity: str = "sensitive"
+        self, prompt: str, *, members: list[str] | None = None,
+        size: int | None = None, sensitivity: str = "sensitive",
     ) -> CouncilResult:
         privacy.scan_secrets(prompt)
         allowed = privacy.allowed_members(self._members, sensitivity)
+        if not allowed:
+            raise NoEligibleMember("no members available for the requested sensitivity")
         pool = usage.available(allowed, self._counts()) or allowed
-        wanted = members or self._default_member_aliases
-        chosen = [m for m in pool if m.alias in wanted] or [
-            m for m in allowed if m.alias in wanted
-        ]
-        if not chosen:
-            raise NoEligibleMember("no eligible council members for this sensitivity")
+        notes: list[str] = []
+
+        if members is not None:
+            allowed_by_alias = {m.alias for m in allowed}
+            pool_by_alias = {m.alias: m for m in pool}
+            roster: list[Member] = []
+            for alias in members:
+                if alias in pool_by_alias:
+                    roster.append(pool_by_alias[alias])
+                elif self._by_alias(alias) is None:
+                    notes.append(f"dropped {alias} (unknown)")
+                elif alias not in allowed_by_alias:
+                    tier = self._by_alias(alias).privacy_tier
+                    notes.append(f"dropped {alias} (tier {tier} blocked on {sensitivity})")
+                else:
+                    notes.append(f"dropped {alias} (exhausted)")
+            if roster:
+                chosen = roster
+            else:
+                notes.append("manual roster empty after gate; auto-composed")
+                chosen = await self._auto_roster(prompt, allowed, pool, size, notes)
+        else:
+            chosen = await self._auto_roster(prompt, allowed, pool, size, notes)
+
         answers = await fanout.fan_out(prompt, chosen, self._caller)
         merged, mode, disagreements, judge_used = await agg.aggregate(
             prompt, answers, caller=self._caller, judge_aliases=self._judge_order(chosen)
         )
         return CouncilResult(
             answer=merged, per_member=answers, disagreements=disagreements,
-            judge_used=judge_used, mode=mode,
+            judge_used=judge_used, mode=mode, note="; ".join(notes),
         )
+
+    async def _auto_roster(
+        self, prompt: str, allowed: list[Member], pool: list[Member],
+        size: int | None, notes: list[str],
+    ) -> list[Member]:
+        capability = await router.classify(
+            prompt, caller=self._caller, classifier_alias=self._classifier_for(allowed)
+        )
+        k = size if size is not None else compose.adaptive_k(capability)
+        chosen = compose.compose_council(pool, k=k, capability=capability)
+        notes.append(f"auto: {capability}, k={len(chosen)}")
+        return chosen
 
     def _judge_order(self, chosen: list[Member]) -> list[str]:
         # Judges come only from the already-tier-filtered chosen members, so the chair

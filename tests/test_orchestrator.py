@@ -58,15 +58,50 @@ def test_ask_sensitive_refuses_tier_b_model():
         asyncio.run(_orch(Recorder()).ask("hi", model="council/some-b", sensitivity="sensitive"))
 
 
-def test_council_default_trio_and_judge():
+def test_council_auto_composes_vendor_diverse():
     rec = Recorder()
     r = asyncio.run(_orch(rec).council("explain the tradeoffs in depth please"))
+    # sensitive -> only Tier-A (GLM/GROQ/CF); TIERB excluded
     assert {a.alias for a in r.per_member} == {
-        "council/cerebras-glm-4.7",
-        "council/groq-gpt-oss-120b",
-        "council/cloudflare-llama-70b",
+        "council/cerebras-glm-4.7", "council/groq-gpt-oss-120b", "council/cloudflare-llama-70b",
     }
     assert r.mode == "judge" and r.judge_used == "council/cerebras-glm-4.7"
+
+
+def test_council_manual_roster_used():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("x", members=["council/groq-gpt-oss-120b"]))
+    assert [a.alias for a in r.per_member] == ["council/groq-gpt-oss-120b"]
+
+
+def test_council_manual_tier_b_dropped_on_sensitive():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council(
+        "x", members=["council/groq-gpt-oss-120b", "council/some-b"], sensitivity="sensitive"))
+    aliases = {a.alias for a in r.per_member}
+    assert "council/some-b" not in aliases
+    assert "council/groq-gpt-oss-120b" in aliases
+    assert "some-b" in r.note and "drop" in r.note.lower()
+    assert all("council/some-b" != alias for alias, _ in rec.calls)  # never called
+
+
+def test_council_manual_tier_b_allowed_on_public():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("x", members=["council/some-b"], sensitivity="public"))
+    assert [a.alias for a in r.per_member] == ["council/some-b"]
+
+
+def test_council_size_override():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("deep reasoning task", size=2))
+    assert len(r.per_member) == 2
+
+
+def test_council_unknown_alias_dropped_falls_back_to_auto():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("x", members=["council/nope"]))
+    assert len(r.per_member) >= 1  # empty roster -> auto-composed
+    assert "nope" in r.note
 
 
 def test_ask_auto_falls_back_on_rate_limit():
