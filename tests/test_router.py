@@ -50,3 +50,10 @@ def test_rank_orders_by_strength_then_rpm():
 def test_rank_raises_when_no_capability():
     with pytest.raises(NoEligibleMember):
         router.rank(MEMBERS, "vision")
+
+
+def test_rank_uses_capability_score_not_overall():
+    generalist = Member("gen", "A", {"general": 5, "code": 2}, 10, "g")
+    specialist = Member("spec", "A", {"code": 5, "general": 2}, 10, "s")
+    assert router.select([generalist, specialist], "code") is specialist
+    assert router.select([generalist, specialist], "general") is generalist

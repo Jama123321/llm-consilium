@@ -25,10 +25,10 @@ async def classify(prompt: str, *, caller: AsyncCaller, classifier_alias: str) -
 
 
 def rank(members: list[Member], capability: str) -> list[Member]:
-    candidates = [m for m in members if capability in m.capabilities]
+    candidates = [m for m in members if capability in m.scores]
     if not candidates:
         raise NoEligibleMember(f"no member has capability '{capability}'")
-    return sorted(candidates, key=lambda m: (m.strength, m.rpm), reverse=True)
+    return sorted(candidates, key=lambda m: (m.scores[capability], m.rpm), reverse=True)
 
 
 def select(members: list[Member], capability: str) -> Member:
