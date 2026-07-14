@@ -6,10 +6,18 @@ from council.errors import AllMembersFailed, MemberCallError, PrivacyRefusal
 from council.orchestrator import Orchestrator
 from council.types import Member
 
-GLM = Member("council/cerebras-glm-4.7", "A", ("reasoning", "general", "code"), 5, 5)
-GROQ = Member("council/groq-gpt-oss-120b", "A", ("reasoning", "code", "general", "fast"), 4, 30)
-CF = Member("council/cloudflare-llama-70b", "A", ("general", "fast"), 3, 10)
-TIERB = Member("council/some-b", "B", ("general",), 2, 10)
+GLM = Member(
+    "council/cerebras-glm-4.7", "A", {"reasoning": 5, "general": 5, "code": 5}, 5, "cerebras"
+)
+GROQ = Member(
+    "council/groq-gpt-oss-120b",
+    "A",
+    {"reasoning": 4, "code": 4, "general": 4, "fast": 4},
+    30,
+    "groq",
+)
+CF = Member("council/cloudflare-llama-70b", "A", {"general": 3, "fast": 3}, 10, "cloudflare")
+TIERB = Member("council/some-b", "B", {"general": 2}, 10, "someb")
 ALL = [GLM, GROQ, CF, TIERB]
 
 
@@ -50,15 +58,50 @@ def test_ask_sensitive_refuses_tier_b_model():
         asyncio.run(_orch(Recorder()).ask("hi", model="council/some-b", sensitivity="sensitive"))
 
 
-def test_council_default_trio_and_judge():
+def test_council_auto_composes_vendor_diverse():
     rec = Recorder()
     r = asyncio.run(_orch(rec).council("explain the tradeoffs in depth please"))
+    # sensitive -> only Tier-A (GLM/GROQ/CF); TIERB excluded
     assert {a.alias for a in r.per_member} == {
-        "council/cerebras-glm-4.7",
-        "council/groq-gpt-oss-120b",
-        "council/cloudflare-llama-70b",
+        "council/cerebras-glm-4.7", "council/groq-gpt-oss-120b", "council/cloudflare-llama-70b",
     }
     assert r.mode == "judge" and r.judge_used == "council/cerebras-glm-4.7"
+
+
+def test_council_manual_roster_used():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("x", members=["council/groq-gpt-oss-120b"]))
+    assert [a.alias for a in r.per_member] == ["council/groq-gpt-oss-120b"]
+
+
+def test_council_manual_tier_b_dropped_on_sensitive():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council(
+        "x", members=["council/groq-gpt-oss-120b", "council/some-b"], sensitivity="sensitive"))
+    aliases = {a.alias for a in r.per_member}
+    assert "council/some-b" not in aliases
+    assert "council/groq-gpt-oss-120b" in aliases
+    assert "some-b" in r.note and "drop" in r.note.lower()
+    assert all("council/some-b" != alias for alias, _ in rec.calls)  # never called
+
+
+def test_council_manual_tier_b_allowed_on_public():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("x", members=["council/some-b"], sensitivity="public"))
+    assert [a.alias for a in r.per_member] == ["council/some-b"]
+
+
+def test_council_size_override():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("deep reasoning task", size=2))
+    assert len(r.per_member) == 2
+
+
+def test_council_unknown_alias_dropped_falls_back_to_auto():
+    rec = Recorder()
+    r = asyncio.run(_orch(rec).council("x", members=["council/nope"]))
+    assert len(r.per_member) >= 1  # empty roster -> auto-composed
+    assert "nope" in r.note
 
 
 def test_ask_auto_falls_back_on_rate_limit():
@@ -87,7 +130,7 @@ def test_ask_raises_all_members_failed_when_all_rate_limited():
 
 
 def test_classifier_never_a_tier_filtered_member():
-    tierb_classifier = Member("council/tierb-classifier", "B", ("general",), 2, 99)
+    tierb_classifier = Member("council/tierb-classifier", "B", {"general": 2}, 99, "tierbc")
     o = Orchestrator([GLM, GROQ, CF, tierb_classifier], Recorder(),
                      classifier_alias="council/tierb-classifier")
     asyncio.run(o.ask("a reasoning task"))
@@ -119,7 +162,7 @@ def test_council_skips_exhausted_member():
     # GLM exhausted by tpd; council should fall back to the remaining trio members
     store = _FakeStore({"council/cerebras-glm-4.7": (0, 10**9)})
     members = [
-        Member("council/cerebras-glm-4.7", "A", ("reasoning",), 5, 5, tpd=1000000),
+        Member("council/cerebras-glm-4.7", "A", {"reasoning": 5}, 5, "cerebras", tpd=1000000),
         GROQ, CF,
     ]
     o = Orchestrator(members, Recorder(), store=store)
@@ -130,9 +173,9 @@ def test_council_skips_exhausted_member():
 def test_council_falls_back_when_all_exhausted():
     store = _FakeStore({m.alias: (0, 10**9) for m in [GLM, GROQ, CF]})
     members = [
-        Member(GLM.alias, "A", GLM.capabilities, 5, 5, tpd=1),
-        Member(GROQ.alias, "A", GROQ.capabilities, 4, 30, tpd=1),
-        Member(CF.alias, "A", CF.capabilities, 3, 10, tpd=1),
+        Member(GLM.alias, "A", GLM.scores, 5, "cerebras", tpd=1),
+        Member(GROQ.alias, "A", GROQ.scores, 30, "groq", tpd=1),
+        Member(CF.alias, "A", CF.scores, 10, "cloudflare", tpd=1),
     ]
     o = Orchestrator(members, Recorder(), store=store)
     r = asyncio.run(o.council("explain the tradeoffs in depth please"))

@@ -14,8 +14,10 @@ driver** — you (Claude) remain the primary reasoner.
   auto-routes (classifies the task). Use for a quick routed second opinion, a cheap
   bulk step, or a strength-specific call (pass `capability` = reasoning|code|fast|general,
   or `model` for a specific member).
-- `council(prompt, sensitivity?)` — fan out to diverse models + aggregate. Use for
-  high-stakes cross-checks where diverse errors matter (costs more free-tier RPD).
+- `council(prompt, sensitivity?, members?, size?)` — fan out to a diverse, auto-composed
+  set of models and aggregate. `members` pins an exact roster (list of aliases); `size`
+  overrides the adaptive 3-5 council size. Tier-B members are dropped on `sensitive`
+  even if named. Use for high-stakes cross-checks (costs more free-tier RPD).
 - `stats()` — today's per-member usage (requests, tokens) vs daily caps; use to check
   headroom before a heavy `council` call.
 - **Privacy:** always set `sensitivity`. Default `sensitive` (Tier-A only). Use

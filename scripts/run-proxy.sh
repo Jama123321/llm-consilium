@@ -22,6 +22,13 @@ if (( ${#missing[@]} > 0 )); then
   exit 1
 fi
 
+optional=(GITHUB_API_KEY MISTRAL_API_KEY SAMBANOVA_API_KEY NVIDIA_NIM_API_KEY)
+active=(); dormant=()
+for var in "${optional[@]}"; do
+  if [[ -n "${!var:-}" ]]; then active+=("$var"); else dormant+=("$var"); fi
+done
+echo "Optional providers active: ${active[*]:-none}; dormant: ${dormant[*]:-none}" >&2
+
 if [[ -n "${CONSILIUM_CHECK_ONLY:-}" ]]; then
   echo "OK: all required env vars present (check-only, not launching)"
   exit 0

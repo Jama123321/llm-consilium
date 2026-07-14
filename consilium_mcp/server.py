@@ -53,6 +53,7 @@ def _shape_council(r: CouncilResult) -> dict:
             {"alias": a.alias, "ok": a.ok, "detail": a.detail, "answer": a.answer}
             for a in r.per_member
         ],
+        "note": r.note,
     }
 
 
@@ -61,9 +62,16 @@ async def ask(
     prompt: str, model: str | None = None, capability: str | None = None,
     sensitivity: str = "sensitive",
 ) -> dict:
-    """Ask one best-fit free model (auto-routed) or a specific model.
+    """Ask ONE best-fit free model for a quick second opinion or cheap bulk step.
 
-    sensitivity: "sensitive" (Tier-A only, default) or "public" (A+B).
+    prompt: the question. Strip secrets/credentials first (the gate refuses obvious ones).
+    model: pin a specific member alias (e.g. "council/github-gpt-4.1"); omit to auto-route.
+    capability: force a strength axis — "reasoning" | "code" | "fast" | "general".
+        Omit to auto-classify. Ignored when `model` is set.
+    sensitivity: "sensitive" (default, Tier-A no-train providers only) or "public"
+        (adds Tier-B providers that may train on the prompt). Use "public" ONLY for
+        generic/published questions.
+    Returns: {answer, model_used, capability, note}. `note` records routing/fallbacks.
     """
     return _shape_ask(
         await _get_orch().ask(prompt, model=model, capability=capability, sensitivity=sensitivity)
@@ -71,12 +79,31 @@ async def ask(
 
 
 @mcp.tool()
-async def council(prompt: str, sensitivity: str = "sensitive") -> dict:
-    """Convene the council: fan out to diverse free models and aggregate.
+async def council(
+    prompt: str, sensitivity: str = "sensitive",
+    members: list[str] | None = None, size: int | None = None,
+) -> dict:
+    """Convene the council: fan out to several diverse free models and aggregate.
 
-    sensitivity: "sensitive" (Tier-A only, default) or "public" (A+B).
+    Use for high-stakes cross-checks where diverse errors matter (costs more free-tier
+    quota than `ask`).
+
+    prompt: the question. Strip secrets/credentials first.
+    sensitivity: "sensitive" (default, Tier-A only) or "public" (adds Tier-B). A Tier-B
+        member is NEVER contacted on a sensitive prompt, even if named in `members`.
+    members: pin an exact roster (list of member aliases). Omit to auto-compose the
+        strongest vendor-diverse set for the classified task. Members blocked by the
+        privacy gate or exhausted are dropped (see `note`).
+    size: council size override (else adaptive 3-5 by task type). Ignored when `members`
+        is given (its length wins).
+    Returns: {answer, mode, judge_used, disagreements, per_member, note}. `note` records
+        roster decisions (auto capability/size, dropped members, fallbacks).
     """
-    return _shape_council(await _get_orch().council(prompt, sensitivity=sensitivity))
+    return _shape_council(
+        await _get_orch().council(
+            prompt, sensitivity=sensitivity, members=members, size=size
+        )
+    )
 
 
 @mcp.tool()
