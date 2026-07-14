@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from consilium_mcp import server
@@ -46,3 +48,12 @@ def test_shape_council():
     assert out["per_member"][0] == {
         "alias": "council/x", "ok": True, "detail": "ok", "answer": "hi",
     }
+
+
+def test_server_inserts_repo_root_before_council_import():
+    text = Path(server.__file__).read_text()
+    insert = text.find("sys.path.insert")
+    council = text.find("from council")
+    assert insert != -1, "server.py must insert the repo root on sys.path"
+    assert council != -1
+    assert insert < council, "the sys.path insert must precede the council import"
