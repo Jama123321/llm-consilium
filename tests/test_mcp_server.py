@@ -69,3 +69,27 @@ def test_stats_delegates_to_usage_summary(monkeypatch):
 
     rows = asyncio.run(server.stats())
     assert rows[0]["alias"] == "council/x" and rows[0]["requests"] == 2
+
+
+def test_shape_council_includes_note():
+    r = CouncilResult(
+        answer="m", per_member=[MemberAnswer("council/x", True, "hi", "ok")],
+        disagreements="none", judge_used="council/x", mode="judge", note="auto: code, k=4",
+    )
+    assert server._shape_council(r)["note"] == "auto: code, k=4"
+
+
+def test_council_tool_passes_members_and_size(monkeypatch):
+    captured = {}
+
+    class FakeOrch:
+        async def council(self, prompt, *, members=None, size=None, sensitivity="sensitive"):
+            captured.update(prompt=prompt, members=members, size=size, sensitivity=sensitivity)
+            return CouncilResult("a", [], "none", None, "judge", note="ok")
+
+    monkeypatch.setattr(server, "_orch", FakeOrch())
+    import asyncio
+    asyncio.run(server.council("q", sensitivity="public", members=["council/x"], size=3))
+    assert captured == {
+        "prompt": "q", "members": ["council/x"], "size": 3, "sensitivity": "public",
+    }
