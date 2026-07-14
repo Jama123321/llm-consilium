@@ -20,7 +20,19 @@ def test_live_ping_ok_and_error():
     assert init.live_ping(groq, {"GROQ_API_KEY": "bad"}, client=client).ok is False
 
 
-def test_run_writes_keys_and_reports_readiness(tmp_path, capsys):
+def test_live_ping_survives_non_httperror():
+    # A malformed base (e.g. user-entered CLOUDFLARE_API_BASE) raises httpx.InvalidURL,
+    # which is NOT an httpx.HTTPError — the ping must still degrade gracefully, never raise.
+    class Boom:
+        def post(self, *args, **kwargs):
+            raise httpx.InvalidURL("malformed base")
+
+    groq = next(p for p in PROVIDERS if p.key == "groq")
+    res = init.live_ping(groq, {"GROQ_API_KEY": "x"}, client=Boom())
+    assert res.ok is False and "InvalidURL" in res.detail
+
+
+def test_run_writes_keys_and_reports_readiness(tmp_path):
     p = tmp_path / ".env"
     # scripted answers: one per env_var across all providers, in order.
     # cerebras, groq, cloudflare(token, base), github, mistral, sambanova, nvidia

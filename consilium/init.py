@@ -43,7 +43,7 @@ def live_ping(
                   "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1},
             headers={"Authorization": f"Bearer {key}"},
         )
-    except httpx.HTTPError as exc:
+    except Exception as exc:  # noqa: BLE001 - a ping is best-effort readiness; never abort init
         return PingResult(False, f"unreachable: {exc.__class__.__name__}")
     finally:
         if owns_client:
