@@ -40,9 +40,7 @@ driver** — you (Claude) remain the primary reasoner.
 Requires the proxy running and keys in `~/.config/consilium/.env`.
 
 ```bash
-claude mcp add --scope user consilium -- \
-  /opt/claude-projects/llm-consilium/.venv/bin/python \
-  /opt/claude-projects/llm-consilium/consilium_mcp/server.py
+python -m consilium mcp-register   # run from the cloned repo; paths are derived automatically
 ```
 The server reads `LITELLM_MASTER_KEY` from `~/.config/consilium/.env`; it needs the
 proxy up on 127.0.0.1:4000.
