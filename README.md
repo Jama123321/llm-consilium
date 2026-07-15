@@ -1,16 +1,124 @@
 # LLM Consilium
 
-A global, VM-wide **council of free cloud LLMs** any Claude Code project on this
-machine can consult for a second opinion, a diverse cross-check, or bounded
-parallel work — with **privacy-safe routing** (private code never reaches a
-provider that trains on it). Interim multi-model compute until a local model exists.
+**A privacy-tiered council of *free* cloud LLMs, on tap inside Claude Code.**
+Private code never reaches a provider that trains on it.
 
-- **What / why / how:** see [`CLAUDE.md`](./CLAUDE.md).
-- **Full bootstrap brief for a fresh session:** see [`SUPERPROMPT.md`](./SUPERPROMPT.md).
-- **Design basis (2026 free-LLM audit):** [`docs/research/free-llm-consilium-audit-2026.md`](./docs/research/free-llm-consilium-audit-2026.md).
+Claude Code stays the primary reasoner. When it wants a second opinion, a diverse
+cross-check, or to parallelise a bounded question, it consults the council: the
+same prompt fans out to several free models from different vendors (diverse errors),
+and the answers are aggregated. Every call is gated by data-sensitivity so private
+code never lands on a provider whose free tier trains on your prompts.
 
-**Architecture:** LiteLLM proxy (`localhost:4000/v1`) → council orchestrator
-(privacy gate → fan-out → aggregate) → user-scope MCP `council` tool available in
-every project.
+## Why this one
 
-**Status:** Phase 0 (MVP proxy) — not started. Start with the brainstorming skill.
+Free-council + MCP wrappers are a crowded space. The edge here is **privacy-tiering
+by each provider's free-tier train-policy** — Tier-A (contractually no-train / no-retention)
+vs Tier-B (trains, retains, or undocumented) — enforced as a **first-class gate on every
+single call**, not an afterthought. A `sensitive` prompt (the default) can only reach
+Tier-A providers; a Tier-B model is never contacted on sensitive input, even if you name
+it explicitly.
+
+## Providers
+
+| Tier | Providers | Use |
+|------|-----------|-----|
+| **A** (no-train) | Cerebras, Groq, Cloudflare Workers AI, GitHub Models | any prompt (incl. private code) |
+| **B** (trains / undocumented) | Mistral, SambaNova, NVIDIA NIM | `public` prompts only |
+
+The tier follows the **inference provider**, not the origin of the model weights (an
+open-weights model served by a Tier-B provider is still Tier-B). A provider you have no
+key for stays **dormant** — key-presence activates it, so you only run what you've configured.
+
+## Install
+
+Cross-platform (Linux / macOS / Windows). Copy-paste, top to bottom:
+
+```bash
+git clone https://github.com/Jama123321/llm-consilium && cd llm-consilium
+python -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt                      # litellm[proxy], httpx, pyyaml, mcp, ...
+python -m consilium init                             # enter the free keys you have -> readiness table
+python -m consilium start                            # background proxy (or: install-service for autostart)
+python -m consilium mcp-register                     # wire into Claude Code (restart Claude Code after)
+python -m consilium doctor                           # verify keys / proxy / MCP registration
+```
+
+Notes:
+
+- `init` prompts for each provider's free API key (Enter to skip one) and writes them to
+  `~/.config/consilium/.env` (never committed), then prints a live readiness table.
+- `start` launches the LiteLLM proxy in the background; `python -m consilium start --foreground`
+  runs it attached, and `python -m consilium install-service` sets up autostart (systemd `--user`
+  on Linux; prints the equivalent for macOS / Windows).
+- `python -m consilium stop` / `status` control and inspect the proxy.
+- **Restart Claude Code** after `mcp-register` so it loads the user-scope MCP server.
+
+## Usage
+
+Once registered, Claude Code sees three MCP tools:
+
+- **`ask(prompt, model?, capability?, sensitivity?)`** — one best-fit free model for a quick
+  routed second opinion or a cheap bulk step. Omit `model`/`capability` to auto-route; or pin
+  `capability` = `reasoning` | `code` | `fast` | `general`, or `model` to a specific member.
+- **`council(prompt, sensitivity?, members?, size?, mode?)`** — fan out to a diverse roster and
+  aggregate. Use for high-stakes cross-checks where diverse errors matter (costs more free-tier
+  quota than `ask`). `size` overrides the adaptive 3–5 roster; `members` pins an exact roster.
+  `mode`:
+  - *omit* — auto (majority vote for closed-form answers, else chair synthesis)
+  - `"vote"` — force majority vote
+  - `"judge"` — force chair synthesis
+  - `"peer-rank"` — members rank each other's anonymized answers; the winner is returned verbatim
+  - `"debate"` — stance-steered debate (members critique and revise under for/against/neutral
+    stances until they converge, then the chair synthesizes); strongest for contentious
+    questions, most free-tier calls
+- **`stats()`** — today's per-member usage (requests, tokens) vs daily caps.
+
+**Sensitivity** on every call: `"sensitive"` (the **default** — Tier-A no-train providers only)
+or `"public"` (adds Tier-B). Use `"public"` only for generic / already-published questions.
+
+**Optional calibration log:** set `CONSILIUM_LOG=1` to append a privacy-safe JSONL record of
+each run to `~/.config/consilium/runs.jsonl` (for tuning routing; off by default).
+
+## Architecture
+
+Three layers:
+
+1. **Compute** — a single **LiteLLM proxy** exposing one OpenAI-compatible `/v1` on
+   `127.0.0.1:4000`. One config, all providers, all keys.
+2. **Council** — a thin **orchestrator**: takes `{prompt, sensitivity}`, applies the privacy
+   gate, fans out to K members through the proxy (per-member rate semaphores + timeout + quorum),
+   and aggregates (vote / judge / peer-rank / debate).
+3. **Claude integration** — a **user-scope MCP server** exposing `ask` / `council` / `stats`,
+   available in every Claude Code project on the machine.
+
+```
+Claude Code ──MCP──▶ orchestrator (privacy gate → fan-out → aggregate) ──▶ LiteLLM proxy ──▶ free providers
+```
+
+## Privacy model
+
+- A **`sensitive`** prompt (the default) routes to **Tier-A only** — providers whose free tier
+  contractually does not train on or retain your data. Private repo code is fine here.
+- A **`public`** prompt may additionally use **Tier-B** (providers that train / retain / are
+  undocumented). Reserve it for generic, non-sensitive, or already-published questions.
+- **Secrets / `.env` / credentials are never sent to any free tier** — not even Tier-A. The gate
+  refuses obvious secrets, but strip them yourself first.
+- **Graceful degradation:** providers without a key stay dormant; a rate-limited or dead member
+  is dropped from the council (never crashes it), and `ask` falls back to the next-best model. A
+  `note` / `mode` field on the result records what happened.
+
+## Credits & prior art
+
+Design ideas were **reimplemented, not copied** — no verbatim third-party code — and are credited
+as a courtesy:
+
+- **ai-council-mcp** (MIT) — anonymized synthesis + code-name debiasing before the judge merges.
+- **FreeLLMAPI** (MIT) — the "Fusion" judge prompt (rewrite standalone, reason don't average) and
+  provider-diversity fan-out.
+- **PAL / zen** (Apache-2.0) — stance-steering (for/against/neutral) and the "stance ≠ license to
+  lie" honesty guardrail in debate mode.
+- **DUH** (AGPL, design only) — Jaccard convergence early-exit and confidence-as-adversarial-rigor.
+
+The **privacy-tiering by provider train-policy** — this project's core differentiator — is our own.
+
+**License:** [MIT](./LICENSE).
