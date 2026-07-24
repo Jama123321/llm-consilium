@@ -1,0 +1,13 @@
+[Unit]
+Description=Consilium Telegram bot (free-LLM council)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/llm-consilium
+ExecStart=%h/llm-consilium/.venv/bin/python -m consilium_tg
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
