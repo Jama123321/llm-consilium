@@ -6,7 +6,7 @@ target-version = "py310"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["council", "consilium", "consilium_chat", "consilium_mcp", "healthcheck"]
+known-first-party = ["council", "consilium", "consilium_chat", "consilium_tg", "consilium_mcp", "healthcheck"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
