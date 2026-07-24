@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -69,12 +70,29 @@ def _make_status_provider():
 
 
 def _make_save_keys():
-    """Merge submitted keys into the secure env file; return a MASKED map only."""
+    """Merge submitted keys into the secure env file; return MASKED values + readiness.
+
+    Never returns raw secret values — only ``init.mask(v)``. For each provider whose
+    keys are now all present, a best-effort ``live_ping`` records its readiness.
+    """
 
     def save_keys(body: dict) -> dict:
-        merged = {**env_file.load(), **{k: v for k, v in body.items() if v}}
+        submitted = {k: v for k, v in body.items() if v}
+        merged = {**env_file.load(), **submitted}
         env_file.write(values=merged)
-        return {k: init.mask(v) for k, v in body.items()}
+        masked = {k: init.mask(v) for k, v in submitted.items()}
+        readiness = []
+        client = httpx.Client(timeout=8.0)
+        try:
+            for p in providers.PROVIDERS:
+                if all(merged.get(v) for v in p.env_vars):
+                    res = init.live_ping(p, merged, client=client)
+                    readiness.append(
+                        {"name": p.name, "tier": p.tier, "ok": res.ok, "detail": res.detail}
+                    )
+        finally:
+            client.close()
+        return {"keys": masked, "readiness": readiness}
 
     return save_keys
 

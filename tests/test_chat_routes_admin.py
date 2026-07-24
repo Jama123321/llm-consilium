@@ -51,3 +51,20 @@ def test_proxy_stop():
     app = _app({"proxy_stop": lambda: {"ok": True, "stopped": True}})
     r = TestClient(app).post("/api/proxy/stop")
     assert r.status_code == 200 and r.json() == {"ok": True, "stopped": True}
+
+
+def test_models_returns_service_list():
+    class FakeService:
+        def list_models(self):
+            return [{"alias": "x", "tier": "A", "provider_family": "p",
+                     "capabilities": ["general"]}]
+
+    app = _app({"service": FakeService()})
+    r = TestClient(app).get("/api/models")
+    assert r.status_code == 200 and r.json()[0]["alias"] == "x"
+
+
+def test_models_no_service_returns_empty():
+    app = _app({})
+    r = TestClient(app).get("/api/models")
+    assert r.status_code == 200 and r.json() == []

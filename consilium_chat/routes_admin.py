@@ -19,6 +19,11 @@ def admin_router() -> APIRouter:
     async def status(request: Request):
         return request.app.state.status_provider()
 
+    @router.get("/api/models")
+    async def models(request: Request):
+        service = getattr(request.app.state, "service", None)
+        return service.list_models() if service is not None else []
+
     @router.post("/api/keys")
     async def save_keys(request: Request):
         body = await request.json()

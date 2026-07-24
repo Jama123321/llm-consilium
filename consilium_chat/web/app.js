@@ -422,6 +422,26 @@ function sendCouncil(threadId, { content, modeVal, sensitivity, model, sizeVal }
   });
 }
 
+/* ---------------- model picker ---------------- */
+
+async function loadModels() {
+  const sel = $("model");
+  if (!sel) return;
+  let models;
+  try {
+    models = await api("/api/models");
+  } catch {
+    return; // leave just the "auto (best-fit)" option
+  }
+  if (!Array.isArray(models) || models.length === 0) return;
+  for (const m of models) {
+    const alias = m && m.alias;
+    if (!alias) continue;
+    const label = m.tier ? `${alias} (${m.tier})` : String(alias);
+    sel.append(el("option", { value: alias, text: label }));
+  }
+}
+
 /* ---------------- status sidebar (RIGHT) ---------------- */
 
 let statusTimer = null;
@@ -526,11 +546,36 @@ async function onSaveKeys(ev) {
   }
 }
 
-function renderKeysReadiness(readiness) {
+function renderKeysReadiness(result) {
   const ul = $("keys-readiness");
-  if (!ul || !readiness || typeof readiness !== "object") return;
+  if (!ul || !result || typeof result !== "object") return;
   ul.textContent = "";
-  for (const [k, v] of Object.entries(readiness)) {
+
+  // New shape: { keys: {VAR: maskedString}, readiness: [{name, tier, ok, detail}] }.
+  const keys = result.keys && typeof result.keys === "object" ? result.keys : null;
+  const readiness = Array.isArray(result.readiness) ? result.readiness : null;
+
+  if (keys || readiness) {
+    for (const [k, v] of Object.entries(keys || {})) {
+      const masked = typeof v === "string" ? v : String(v);
+      ul.append(el("li", null,
+        el("span", { class: "dot dot-green" }),
+        el("span", { text: ` ${k}: ${masked}` })
+      ));
+    }
+    for (const r of readiness || []) {
+      const ok = !!r.ok;
+      const name = (r.name || "?") + (r.tier ? ` (${r.tier})` : "");
+      ul.append(el("li", null,
+        el("span", { class: "dot dot-" + (ok ? "green" : "red") }),
+        el("span", { text: ` ${name}: ${r.detail || (ok ? "ok" : "not ready")}` })
+      ));
+    }
+    return;
+  }
+
+  // Legacy flat-map fallback: { VAR: maskedString | bool | {masked, ready} }.
+  for (const [k, v] of Object.entries(result)) {
     const ready = v === true || (v && typeof v === "object" && v.ready) || (typeof v === "string" && v);
     const masked = typeof v === "string" ? v : (v && v.masked) || (ready ? "set" : "unset");
     ul.append(el("li", null,
@@ -582,6 +627,7 @@ function wireUp() {
 
 function init() {
   wireUp();
+  loadModels();
   loadThreads();
   refreshStatus();
   statusTimer = setInterval(refreshStatus, 5000);
