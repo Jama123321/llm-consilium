@@ -24,7 +24,11 @@ def answer_text(content: str, meta: dict, *, show_footer: bool) -> str:
         return content
     bits = [str(meta[k]) for k in ("mode", "confidence", "model") if meta.get(k)]
     footer = " · ".join(bits)
-    return f"{content}\n\n— {footer}" if footer else content
+    note = meta.get("note")
+    out = f"{content}\n\n— {footer}" if footer else content
+    if note:
+        out = f"{out}\nⓘ {note}"
+    return out
 
 
 def chunk(text: str, limit: int = 4096) -> list[str]:
@@ -60,6 +64,9 @@ def sessions_layout(sessions) -> list[list[tuple[str, str]]]:
     rows = []
     for s in sessions:
         mark = "● " if s.get("active") else "○ "
-        rows.append([(f"{mark}{s['title']}", f"sess:switch:{s['id']}")])
+        rows.append([
+            (f"{mark}{s['title']}", f"sess:switch:{s['id']}"),
+            ("🗑", f"sess:del:{s['id']}"),
+        ])
     rows.append([("➕ New session", "sess:new")])
     return rows

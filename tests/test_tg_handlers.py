@@ -188,3 +188,75 @@ def test_owner_approve_via_command(tmp_path):
     upd, msg = make_update(uid=7, text="")
     asyncio.run(handlers.approve_cmd(upd, _ctx(store, access, service, settings, args=["9"])))
     assert access.is_allowed(9) and access.list_pending() == {}
+
+
+def test_rename_active_session(tmp_path):
+    store, access, service, settings = _wire(tmp_path)
+    store.active_session(100)                       # ensure a session exists
+    upd, msg = make_update(uid=7, text="")
+    ctx = _ctx(store, access, service, settings, args=["My", "Title"])
+    asyncio.run(handlers.rename_cmd(upd, ctx))
+    assert store.list_sessions(100)[0]["title"] == "My Title"
+
+
+def test_rename_without_args_shows_usage(tmp_path):
+    store, access, service, settings = _wire(tmp_path)
+    store.active_session(100)
+    upd, msg = make_update(uid=7, text="")
+    asyncio.run(handlers.rename_cmd(upd, _ctx(store, access, service, settings, args=[])))
+    assert any("Usage: /rename" in r.text for r in msg.replies)
+
+
+def test_malformed_callback_does_not_raise(tmp_path):
+    store, access, service, settings = _wire(tmp_path)
+    sid = store.active_session(100)
+    before = store.active_session(100)
+    for bad in ("sess:switch:abc", "appr:xyz"):
+        upd, q = make_callback(uid=7, data=bad)
+        asyncio.run(handlers.on_callback(upd, _ctx(store, access, service, settings)))
+    assert store.active_session(100) == before == sid   # state unchanged
+
+
+def test_sess_del_deletes_session(tmp_path):
+    store, access, service, settings = _wire(tmp_path)
+    first = store.active_session(100)
+    second = store.create_session(100)              # a 2nd session, now active
+    upd, q = make_callback(uid=7, data=f"sess:del:{second}")
+    asyncio.run(handlers.on_callback(upd, _ctx(store, access, service, settings)))
+    ids = [s["id"] for s in store.list_sessions(100)]
+    assert second not in ids and first in ids
+
+
+class _RaisingProgress(FakeMessage):
+    """A message whose edit_text always fails; its reply_text yields the same kind.
+
+    The `_run_council` loop obtains the progress message via `update.message.reply_text`,
+    so making that child also raise on edit_text simulates a failing FINAL edit; the
+    per-tick progress edits are already suppressed, so only the final edit is exercised.
+    """
+
+    async def reply_text(self, text, reply_markup=None, **kw):
+        child = _RaisingProgress(text)
+        self.replies.append(child)
+        return child
+
+    async def edit_text(self, text, reply_markup=None, **kw):
+        raise RuntimeError("edit failed")
+
+
+def test_final_edit_failure_still_persists(tmp_path):
+    store, access, service, settings = _wire(tmp_path)
+    sid = store.active_session(100)
+    store.set_setting(sid, "tool", "council")
+
+    outer = _RaisingProgress("deep question")       # its reply_text returns a raising progress msg
+    upd = types.SimpleNamespace(
+        effective_user=types.SimpleNamespace(id=7, username="u", full_name="u"),
+        effective_chat=types.SimpleNamespace(id=100),
+        message=outer, callback_query=None,
+    )
+    asyncio.run(handlers.on_text(upd, _ctx(store, access, service, settings)))
+    # persisted the answer despite the failing edit
+    assert store.recent_messages(sid, 8)[-1]["content"] == "FINAL"
+    # a fallback fresh message carried the answer (reply on update.message == outer)
+    assert any("FINAL" in r.text for r in outer.replies)

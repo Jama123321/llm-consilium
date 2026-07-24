@@ -21,6 +21,13 @@ _MODES = ["", "vote", "judge", "debate", "peer-rank"]
 _SIZES = [None, 3, 4, 5]
 
 
+def _as_int(s):
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        return None
+
+
 def kb(layout) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton(text, callback_data=data) for (text, data) in row] for row in layout]
@@ -70,7 +77,8 @@ async def help_cmd(update, context) -> None:
         "• /ask <q> or /council <q> — one-off override\n"
         "• /settings — tool, sensitivity (tier), mode, council model roster, size, footer "
         "(per session, changeable mid-conversation)\n"
-        "• /sessions — switch/new/rename/delete · /new — fresh session\n\n"
+        "• /sessions — switch/delete · /new — fresh session · /rename <title> — retitle "
+        "the active session\n\n"
         "Privacy: your messages transit Telegram's servers. The privacy gate still limits which "
         "LLMs see the prompt (default: sensitive → Tier-A only)."
     )
@@ -82,6 +90,19 @@ async def new_session(update, context) -> None:
     store, *_ = _deps(context)
     store.create_session(update.effective_chat.id)
     await update.message.reply_text("Started a fresh session (previous ones kept — /sessions).")
+
+
+async def rename_cmd(update, context) -> None:
+    if not await _ensure_allowed(update, context):
+        return
+    store, *_ = _deps(context)
+    title = " ".join(context.args).strip()
+    if not title:
+        await update.message.reply_text("Usage: /rename <new title>")
+        return
+    sid = store.active_session(update.effective_chat.id)
+    store.rename_session(sid, title)
+    await update.message.reply_text(f"Renamed this session to “{title}”.")
 
 
 async def sessions_cmd(update, context) -> None:
@@ -156,7 +177,7 @@ async def _run_ask(update, service, store, sid, cfg, prompt) -> None:
     except Exception as exc:  # noqa: BLE001 - never crash a chat on an unexpected error
         await update.message.reply_text(f"⚠️ internal error: {exc.__class__.__name__}")
         return
-    meta = {"model": res.model_used, "note": res.note}
+    meta = {"model": res.model_used}
     await _send_chunks_reply(update, render.answer_text(
         res.answer, meta, show_footer=cfg.get("show_footer", True)))
     store.add_message(sid, "assistant", res.answer)
@@ -201,12 +222,18 @@ async def _run_council(update, service, store, sid, cfg, prompt) -> None:
                             "note": payload.note}
                     parts = render.chunk(render.answer_text(
                         payload.answer, meta, show_footer=cfg.get("show_footer", True)))
-                    await progress.edit_text(parts[0])
-                    for p in parts[1:]:
-                        await update.message.reply_text(p)
                     store.add_message(sid, "assistant", payload.answer)
+                    try:
+                        await progress.edit_text(parts[0])
+                    except Exception:  # noqa: BLE001 - fall back to a fresh message
+                        with contextlib.suppress(Exception):
+                            await update.message.reply_text(parts[0])
+                    for p in parts[1:]:
+                        with contextlib.suppress(Exception):
+                            await update.message.reply_text(p)
                 else:
-                    await progress.edit_text(f"⚠️ {payload}")
+                    with contextlib.suppress(Exception):
+                        await progress.edit_text(f"⚠️ {payload}")
                 continue
             event = item.get("event")
             if event == "roster":
@@ -231,16 +258,24 @@ async def approve_cmd(update, context) -> None:
     _store, access, _service, _settings = _deps(context)
     if not access.is_owner(update.effective_user.id) or not context.args:
         return
-    access.approve(int(context.args[0]))
-    await update.message.reply_text(f"Approved {context.args[0]}.")
+    target = _as_int(context.args[0])
+    if target is None:
+        await update.message.reply_text("Usage: /approve <id>")
+        return
+    access.approve(target)
+    await update.message.reply_text(f"Approved {target}.")
 
 
 async def deny_cmd(update, context) -> None:
     _store, access, _service, _settings = _deps(context)
     if not access.is_owner(update.effective_user.id) or not context.args:
         return
-    access.deny(int(context.args[0]))
-    await update.message.reply_text(f"Denied {context.args[0]}.")
+    target = _as_int(context.args[0])
+    if target is None:
+        await update.message.reply_text("Usage: /deny <id>")
+        return
+    access.deny(target)
+    await update.message.reply_text(f"Denied {target}.")
 
 
 async def pending_cmd(update, context) -> None:
@@ -265,7 +300,9 @@ async def on_callback(update, context) -> None:
 
     if data.startswith(("appr:", "deny:")):
         if access.is_owner(uid):
-            target = int(data.split(":", 1)[1])
+            target = _as_int(data.split(":", 1)[1])
+            if target is None:
+                return
             if data.startswith("appr:"):
                 access.approve(target)
                 with contextlib.suppress(Exception):
@@ -286,9 +323,15 @@ async def on_callback(update, context) -> None:
         if rest == "new":
             store.create_session(chat_id)
         elif rest.startswith("switch:"):
-            store.switch_session(chat_id, int(rest.split(":", 1)[1]))
+            target = _as_int(rest.split(":", 1)[1])
+            if target is None:
+                return
+            store.switch_session(chat_id, target)
         elif rest.startswith("del:"):
-            store.delete_session(chat_id, int(rest.split(":", 1)[1]))
+            target = _as_int(rest.split(":", 1)[1])
+            if target is None:
+                return
+            store.delete_session(chat_id, target)
         await query.edit_message_text(
             "Sessions:", reply_markup=kb(render.sessions_layout(store.list_sessions(chat_id))))
         return
@@ -342,6 +385,7 @@ def register(application) -> None:
     application.add_handler(CommandHandler("help", help_cmd))
     application.add_handler(CommandHandler("new", new_session))
     application.add_handler(CommandHandler("sessions", sessions_cmd))
+    application.add_handler(CommandHandler("rename", rename_cmd))
     application.add_handler(CommandHandler("settings", settings_cmd))
     application.add_handler(CommandHandler("ask", ask_cmd))
     application.add_handler(CommandHandler("council", council_cmd))
