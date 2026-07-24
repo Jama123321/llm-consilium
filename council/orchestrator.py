@@ -27,6 +27,7 @@ class Orchestrator:
         chair_alias: str = CHAIR_ALIAS,
         store: usage.UsageStore | None = None,
         runlog: runlog_module.RunLog | None = None,
+        call_timeout: float = 30.0,
     ) -> None:
         self._members = members
         self._caller = caller
@@ -34,6 +35,7 @@ class Orchestrator:
         self._chair_alias = chair_alias
         self._store = store
         self._runlog = runlog
+        self._call_timeout = call_timeout
 
     def _by_alias(self, alias: str) -> Member | None:
         return next((m for m in self._members if m.alias == alias), None)
@@ -53,6 +55,9 @@ class Orchestrator:
 
     def usage_summary(self) -> list[dict]:
         return usage.summary(self._members, self._counts())
+
+    def usage_history(self, days: int = 7) -> list[dict]:
+        return self._store.history(days) if self._store is not None else []
 
     def _classifier_for(self, allowed: list[Member]) -> str:
         # The classifier receives the prompt, so it must satisfy the privacy gate too:
@@ -134,7 +139,7 @@ class Orchestrator:
         answers = await fanout.fan_out(prompt, chosen, self._caller)
         result = await agg.aggregate(
             prompt, answers, caller=self._caller,
-            judge_aliases=self._judge_order(chosen), mode=mode,
+            judge_aliases=self._judge_order(chosen), mode=mode, timeout=self._call_timeout,
         )
         self._log_council(
             {

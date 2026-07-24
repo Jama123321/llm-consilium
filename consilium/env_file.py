@@ -47,15 +47,13 @@ def write(path: str | Path = DEFAULT_ENV_PATH, values: dict[str, str] | None = N
     _group(lines, "Proxy auth", ("LITELLM_MASTER_KEY",), data)
     _group(lines, "Other", [k for k in data if k not in _KNOWN], data)
     content = "\n".join(lines).rstrip() + "\n"
-    # Secure atomic write: create a fresh temp file (0o600 from creation via mkstemp on
-    # POSIX) then atomically replace the destination. This gives the secrets file tight
-    # perms with no world-readable window (fixes the chmod TOCTOU race) and replaces any
-    # pre-existing symlink at the destination rather than following it (fixes symlink
-    # redirection of secrets).
+    # Secure atomic write: mkstemp creates the temp file mode 0o600 on POSIX (owner
+    # read/write only) — no world-readable window, so no follow-up chmod is needed.
+    # os.replace atomically swaps it in, replacing any pre-existing symlink at the
+    # destination rather than following it. Keeping nothing between mkstemp and fdopen
+    # also removes the theoretical fd-leak on an interim failure.
     fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".env-", suffix=".tmp")
     try:
-        if os.name == "posix":
-            os.chmod(tmp, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(tmp, p)

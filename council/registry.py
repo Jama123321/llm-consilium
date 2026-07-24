@@ -72,6 +72,7 @@ def load_members(
                 provider_family=family,
                 rpd=int(rpd) if rpd is not None else None,
                 tpd=int(tpd) if tpd is not None else None,
+                cost_per_1k=float(info.get("cost_per_1k", 0.0)),
             )
         )
     return members

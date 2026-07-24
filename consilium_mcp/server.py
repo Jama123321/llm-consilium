@@ -117,9 +117,22 @@ async def council(
 
 
 @mcp.tool()
-async def stats() -> list[dict]:
-    """Today's per-member Consilium usage (requests, tokens) vs daily caps."""
-    return _get_orch().usage_summary()
+async def stats(days: int = 1) -> dict:
+    """Consilium usage vs daily caps.
+
+    days: 1 (default) returns today's per-member summary plus a total cost line;
+        days > 1 additionally returns a per-day history (newest first).
+    Returns: {today: [per-member rows incl. cost_usd], total_cost_usd, history?}.
+    """
+    o = _get_orch()
+    today_rows = o.usage_summary()
+    out = {
+        "today": today_rows,
+        "total_cost_usd": round(sum(r.get("cost_usd", 0.0) for r in today_rows), 6),
+    }
+    if days > 1:
+        out["history"] = o.usage_history(days)
+    return out
 
 
 def main() -> None:
