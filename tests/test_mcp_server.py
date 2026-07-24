@@ -59,16 +59,35 @@ def test_server_inserts_repo_root_before_council_import():
     assert insert < council, "the sys.path insert must precede the council import"
 
 
-def test_stats_delegates_to_usage_summary(monkeypatch):
+def test_stats_returns_today_and_total_cost(monkeypatch):
     class FakeOrch:
         def usage_summary(self):
-            return [{"alias": "council/x", "requests": 2, "tokens": 10, "exhausted": False}]
+            return [{"alias": "council/x", "requests": 2, "tokens": 10,
+                     "exhausted": False, "cost_usd": 0.0}]
 
     monkeypatch.setattr(server, "_orch", FakeOrch())
     import asyncio
 
-    rows = asyncio.run(server.stats())
-    assert rows[0]["alias"] == "council/x" and rows[0]["requests"] == 2
+    out = asyncio.run(server.stats())
+    assert out["today"][0]["alias"] == "council/x" and out["today"][0]["requests"] == 2
+    assert out["total_cost_usd"] == 0.0
+    assert "history" not in out  # days=1 -> no history block
+
+
+def test_stats_days_includes_history(monkeypatch):
+    class FakeOrch:
+        def usage_summary(self):
+            return [{"alias": "council/x", "requests": 1, "tokens": 5, "cost_usd": 0.0}]
+
+        def usage_history(self, days):
+            return [{"day": "2026-07-23", "alias": "council/x", "requests": 1, "tokens": 5}]
+
+    monkeypatch.setattr(server, "_orch", FakeOrch())
+    import asyncio
+
+    out = asyncio.run(server.stats(days=7))
+    assert out["history"][0]["day"] == "2026-07-23"
+    assert out["total_cost_usd"] == 0.0
 
 
 def test_shape_council_includes_note():

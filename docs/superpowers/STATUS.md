@@ -1,4 +1,4 @@
-# LLM Consilium — project STATUS / handoff (as of 2026-07-14)
+# LLM Consilium — project STATUS / handoff (as of 2026-07-24)
 
 Durable state map so work survives a context compaction. Trust `git log`, the SDD ledger
 (`.superpowers/sdd/progress.md`, git-ignored), and this doc over recollection.
@@ -42,11 +42,18 @@ compute (proxy) → council (orchestrator lib) → Claude integration (MCP). Cor
     `install-service` (systemd/Task-Sched), `doctor`; new `paths.py`/`service.py`/`setup.py`/`doctor.py`;
     de-hardcode remaining `/opt` (usage-rule.md → `mcp-register`; removed static deploy unit + superseded
     bash install scripts). Canonical launcher = `consilium start --foreground`.
-  - **3c README/LICENSE/public** — IN PROGRESS (this PR): `LICENSE` (MIT), `README.md` (privacy hook,
+  - **3c README/LICENSE/public** — MERGED (PR #14): `LICENSE` (MIT), `README.md` (privacy hook,
     Tier-A/B table, cross-platform install chain, usage/modes, architecture, privacy, credits), repo
     scrub (clean: no tracked secrets, no machine-specific runtime paths). **Repo is still PRIVATE** —
     `gh repo edit --visibility public` is USER-GATED (not run; pending explicit "make it public"). Before
     the flip, decide whether `docs/superpowers/` dev-process docs stay in the public repo.
+- **3d Backlog-zero hardening** — on branch `phase-3d` (BURST format: 6 parallel worktree agents + fix
+  wave). Closes ALL nine deferred-backlog items: 429 retry/backoff + Retry-After cap + served-200 usage
+  accounting (client.py); aggregation timeout plumbed into peer-rank/debate + fan-out (aggregate/orchestrator);
+  `_token_count` hardened against non-numeric tokens; mkstemp chmod cleanup (env_file); per-member `cost_usd`
+  + multi-day `UsageStore.history` + `stats(days)` (usage/orchestrator/MCP, no schema migration); corrupt-DB,
+  hermetic-unwritable-path, and None-answer-redaction tests. Gate: ruff clean, 209 passed. Spec+plan:
+  `docs/superpowers/{specs,plans}/2026-07-24-phase-3d-*`.
 
 ## Branch / merge / deploy
 - GitHub: private repo `Jama123321/llm-consilium`. `main` has everything through 3a + hotfix.
@@ -65,19 +72,19 @@ compute (proxy) → council (orchestrator lib) → Claude integration (MCP). Cor
   MIT-shareable (no verbatim third-party code; credit comments only).
 
 ## Deferred backlog (non-blocking)
-- 2b: empty-200 records nothing; corrupt-writable-DB test; unwritable-path test non-hermetic under uid 0.
-- 2c: 429 exponential backoff; multi-day usage history; cost/$ tracking.
-- 2d-2/2d-3: `_peer_rank`/`_debate` timeout not plumbed from orchestrator (default 30s).
-- 2e: no test for Tier-B member with `None` answer through redaction (runtime-verified correct).
-- 3a: redundant chmod after mkstemp; theoretical fd-leak on chmod-before-fdopen (unreachable).
+- **Empty** — all prior items closed by Phase 3d (backlog-zero hardening, 2026-07-24): 429 retry/backoff
+  + Retry-After cap, served-200 usage accounting, aggregation timeout plumbing (peer-rank/debate + fan-out),
+  `_token_count` hardening, mkstemp chmod cleanup, cost tracking, multi-day history, and the corrupt-DB /
+  hermetic-unwritable-path / None-answer-redaction test gaps. See the 3d spec+plan under
+  `docs/superpowers/{specs,plans}/2026-07-24-phase-3d-*`.
 
 ## Next steps
-1. ✅ 3b MERGED (PR #13); 3c (README/LICENSE/scrub) up as PR #14 → merge.
-2. **Context compact** (user-requested, right after 3b+3c merge — this doc + memory + research + git log
-   are the durable record).
-3. **Go public** when the user says so: `gh repo edit Jama123321/llm-consilium --visibility public`
-   (USER-GATED — never auto-run). Optionally add a `consilium uninstall-service` + PyPI packaging later.
-4. Optional: use the council + `CONSILIUM_LOG=1` on a real project to calibrate thresholds/prompts.
+1. ✅ 3a/3b/3c MERGED (PRs #11/#13/#14). 3d (backlog-zero) on `phase-3d` → PR → merge (user-gated).
+2. **Go public** when the user says so: `gh repo edit Jama123321/llm-consilium --visibility public`
+   (USER-GATED — never auto-run). Before the flip, decide whether `docs/superpowers/` process docs stay
+   in the public repo. Optionally add a `consilium uninstall-service` + PyPI packaging later.
+3. Optional: use the council + `CONSILIUM_LOG=1` on a real project to calibrate thresholds/prompts.
+4. Backlog is now **empty** — 3d closed every deferred item.
 
 Workflow discipline: brainstorm→spec→plan→SDD, all subagents on Opus, `ruff`+`pytest` gate,
 PR-per-(sub)wave, no `Co-Authored-By`, no merge to `main` without explicit user OK.

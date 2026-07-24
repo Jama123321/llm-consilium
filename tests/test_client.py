@@ -114,21 +114,80 @@ def test_backoff_retries_5xx_then_succeeds():
     assert out == "ok" and calls["n"] == 2
 
 
-def test_no_retry_on_429():
+def test_backoff_retries_429_then_succeeds(monkeypatch):
+    monkeypatch.setattr(client, "_delay", lambda attempt: 0.0)
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(429, json={})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    out = asyncio.run(
+        client.complete(
+            "http://x/v1", "k", "council/a", "hi",
+            transport=httpx.MockTransport(handler), max_retries=2,
+        )
+    )
+    assert out == "ok" and calls["n"] == 2
+
+
+def test_429_exhausted_raises_after_retries(monkeypatch):
+    monkeypatch.setattr(client, "_delay", lambda attempt: 0.0)
     calls = {"n": 0}
 
     def handler(request):
         calls["n"] += 1
         return httpx.Response(429, json={})
 
-    with pytest.raises(MemberCallError):
+    with pytest.raises(MemberCallError) as ei:
         asyncio.run(
             client.complete(
                 "http://x/v1", "k", "council/a", "hi",
                 transport=httpx.MockTransport(handler), max_retries=2,
             )
         )
-    assert calls["n"] == 1
+    assert calls["n"] == 3 and "429" in ei.value.detail
+
+
+def test_429_honors_retry_after_header_capped(monkeypatch):
+    slept = []
+
+    async def fake_sleep(secs):
+        slept.append(secs)
+
+    monkeypatch.setattr(client.asyncio, "sleep", fake_sleep)
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(429, headers={"Retry-After": "120"}, json={})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    out = asyncio.run(
+        client.complete(
+            "http://x/v1", "k", "council/a", "hi",
+            transport=httpx.MockTransport(handler), max_retries=2,
+        )
+    )
+    assert out == "ok" and slept == [30.0]  # 120 capped to 30
+
+
+def test_empty_200_records_request_with_zero_tokens():
+    seen = []
+    body = {"choices": [{"message": {"content": "   "}}]}  # served 200, empty content, no usage
+
+    with pytest.raises(MemberCallError):
+        asyncio.run(
+            client.complete(
+                "http://x/v1", "k", "council/a", "hi",
+                transport=_transport(200, body),
+                recorder=lambda a, t: seen.append((a, t)),
+            )
+        )
+    assert seen == [("council/a", 0)]  # request counted despite unusable content
 
 
 def test_recorder_receives_total_tokens():
@@ -147,3 +206,16 @@ def test_recorder_receives_total_tokens():
         )
     )
     assert seen == [("council/a", 42)]
+
+
+def test_non_numeric_total_tokens_degrades_to_zero():
+    seen = []
+    body = {"choices": [{"message": {"content": "ok"}}], "usage": {"total_tokens": "abc"}}
+    out = asyncio.run(
+        client.complete(
+            "http://x/v1", "k", "council/a", "hi",
+            transport=_transport(200, body),
+            recorder=lambda a, t: seen.append((a, t)),
+        )
+    )
+    assert out == "ok" and seen == [("council/a", 0)]  # bad token count -> 0, no crash

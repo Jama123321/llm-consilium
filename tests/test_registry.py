@@ -94,3 +94,19 @@ def test_load_members_filters_missing_keys():
 
 def test_load_members_no_filter_returns_all():
     assert len(registry.load_members(CONFIG)) == 13
+
+
+def test_cost_per_1k_defaults_zero_for_free_members():
+    assert _members()["council/cerebras-glm-4.7"].cost_per_1k == 0.0
+
+
+def test_cost_per_1k_parsed_from_model_info(tmp_path):
+    cfg = tmp_path / "priced.yaml"
+    cfg.write_text(
+        "model_list:\n"
+        "  - model_name: council/priced\n"
+        "    litellm_params: {model: groq/x, rpm: 7}\n"
+        "    model_info: {privacy_tier: A, scores: {general: 3}, cost_per_1k: 1.5}\n"
+    )
+    m = {x.alias: x for x in registry.load_members(cfg)}["council/priced"]
+    assert m.cost_per_1k == 1.5

@@ -234,6 +234,35 @@ def test_build_default_config_path_is_absolute_and_cwd_independent(monkeypatch, 
     assert len(members) == 13  # config found despite the foreign CWD
 
 
+def test_council_passes_call_timeout_to_aggregate(monkeypatch):
+    from council import aggregate as agg_mod
+    from council.types import AggregateResult
+    captured = {}
+
+    async def fake_aggregate(prompt, answers, *, caller, judge_aliases, rng=None,
+                             mode=None, timeout=30.0):
+        captured["timeout"] = timeout
+        return AggregateResult("x", "judge", "", "chair", "high")
+
+    monkeypatch.setattr(agg_mod, "aggregate", fake_aggregate)
+    o = Orchestrator(ALL, Recorder(), call_timeout=12.0)
+    asyncio.run(o.council("explain the tradeoffs in depth please"))
+    assert captured["timeout"] == 12.0
+
+
+def test_usage_history_delegates_to_store():
+    class HStore:
+        def history(self, days=7):
+            return [{"day": "2026-07-22", "alias": "council/x", "requests": 1, "tokens": 5}]
+
+    o = Orchestrator(ALL, Recorder(), store=HStore())
+    assert o.usage_history(3)[0]["day"] == "2026-07-22"
+
+
+def test_usage_history_empty_without_store():
+    assert Orchestrator(ALL, Recorder()).usage_history() == []
+
+
 def test_council_logs_run_to_runlog(tmp_path):
     log_path = tmp_path / "runs.jsonl"
     o = Orchestrator(ALL, Recorder(), runlog=RunLog(log_path, enabled=True))
@@ -247,3 +276,24 @@ def test_council_logs_run_to_runlog(tmp_path):
     assert entry["redacted"] is False
     assert entry["prompt"] == "explain the tradeoffs in depth please"
     assert entry["answer"] is not None
+
+
+def test_council_passes_call_timeout_to_fanout(monkeypatch):
+    from council import aggregate as agg_mod
+    from council import fanout as fanout_mod
+    from council.types import AggregateResult, MemberAnswer
+    captured = {}
+
+    async def fake_fan_out(prompt, members, caller, *, timeout=30.0):
+        captured["timeout"] = timeout
+        return [MemberAnswer(m.alias, True, "answer", "ok") for m in members]
+
+    async def fake_aggregate(prompt, answers, *, caller, judge_aliases, rng=None,
+                             mode=None, timeout=30.0):
+        return AggregateResult("x", "judge", "", "chair", "high")
+
+    monkeypatch.setattr(fanout_mod, "fan_out", fake_fan_out)
+    monkeypatch.setattr(agg_mod, "aggregate", fake_aggregate)
+    o = Orchestrator(ALL, Recorder(), call_timeout=9.0)
+    asyncio.run(o.council("explain the tradeoffs in depth please"))
+    assert captured["timeout"] == 9.0

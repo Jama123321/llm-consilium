@@ -73,6 +73,21 @@ def test_redact_false_keeps_content(tmp_path):
     assert "prompt_len" not in entry
 
 
+def test_redact_handles_none_member_answer(tmp_path):
+    # A Tier-B member that abstained has answer=None; redaction must leave it None,
+    # add no answer_len, and not raise.
+    path = tmp_path / "runs.jsonl"
+    log = RunLog(path, enabled=True)
+    log.record(
+        {"tool": "council", "per_member": [{"alias": "council/b", "ok": False, "answer": None}]},
+        redact=True,
+    )
+    member = _read_lines(path)[0]["per_member"][0]
+    assert member["answer"] is None
+    assert "answer_len" not in member
+    assert member["alias"] == "council/b"
+
+
 def test_unwritable_path_does_not_raise(tmp_path):
     # A path whose parent cannot be created (a file used as a directory component).
     blocker = tmp_path / "blocker"
