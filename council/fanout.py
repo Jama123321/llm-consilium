@@ -7,29 +7,36 @@ from council.types import AsyncCaller, Member, MemberAnswer
 
 
 async def _call_one(
-    member: Member, prompt: str, caller: AsyncCaller, sem: asyncio.Semaphore, timeout: float
+    member: Member, prompt: str, caller: AsyncCaller, sem: asyncio.Semaphore, timeout: float,
+    on_member=None,
 ) -> MemberAnswer:
     async with sem:
         try:
             answer = await asyncio.wait_for(caller(member.alias, prompt), timeout)
         except MemberCallError as exc:
-            return MemberAnswer(member.alias, ok=False, answer=None, detail=exc.detail)
+            ans = MemberAnswer(member.alias, ok=False, answer=None, detail=exc.detail)
         except (asyncio.TimeoutError, TimeoutError):
-            return MemberAnswer(member.alias, ok=False, answer=None, detail="timeout")
+            ans = MemberAnswer(member.alias, ok=False, answer=None, detail="timeout")
         except Exception as exc:  # noqa: BLE001 - a misbehaving member must not crash the council
-            return MemberAnswer(
+            ans = MemberAnswer(
                 member.alias, ok=False, answer=None, detail=f"error: {exc.__class__.__name__}"
             )
-        return MemberAnswer(member.alias, ok=True, answer=answer, detail="ok")
+        else:
+            ans = MemberAnswer(member.alias, ok=True, answer=answer, detail="ok")
+    if on_member is not None:
+        on_member(member.alias, ans.ok)
+    return ans
 
 
 async def fan_out(
-    prompt: str, members: list[Member], caller: AsyncCaller, *, timeout: float = 30.0
+    prompt: str, members: list[Member], caller: AsyncCaller, *, timeout: float = 30.0,
+    on_member=None,
 ) -> list[MemberAnswer]:
     # Per-member semaphore (sized to rpm) guards against saturating a member when the
     # same member is called concurrently; harmless at one-call-per-member.
     sems = {m.alias: asyncio.Semaphore(max(1, m.rpm)) for m in members}
     tasks = [
-        asyncio.create_task(_call_one(m, prompt, caller, sems[m.alias], timeout)) for m in members
+        asyncio.create_task(_call_one(m, prompt, caller, sems[m.alias], timeout, on_member))
+        for m in members
     ]
     return list(await asyncio.gather(*tasks))

@@ -48,3 +48,15 @@ def test_slow_member_times_out():
     res = {a.alias: a for a in asyncio.run(fanout.fan_out("q", [M1, M2], caller, timeout=0.05))}
     assert res["m1"].ok
     assert not res["m2"].ok and res["m2"].detail == "timeout"
+
+
+def test_fan_out_reports_progress_per_member():
+    seen = []
+
+    async def caller(alias, prompt):
+        return "ok"
+
+    members = [Member("a", "A", {"general": 3}, 5, "a"), Member("b", "A", {"general": 3}, 5, "b")]
+    asyncio.run(fanout.fan_out("q", members, caller,
+                               on_member=lambda alias, ok: seen.append((alias, ok))))
+    assert set(seen) == {("a", True), ("b", True)}

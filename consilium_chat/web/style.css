@@ -1,0 +1,217 @@
+/* Consilium Chat — minimal three-column layout on top of Pico.css */
+
+:root {
+  --cc-gap: 0.75rem;
+  --cc-green: #2ecc71;
+  --cc-red: #e74c3c;
+  --cc-amber: #f1c40f;
+  --cc-muted: var(--pico-muted-color, #8a8f98);
+}
+
+html, body { height: 100%; }
+body { margin: 0; }
+
+.app-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 300px;
+  gap: 0;
+  height: 100vh;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+.col {
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: var(--cc-gap);
+  border-right: 1px solid var(--pico-muted-border-color, #333);
+  display: flex;
+  flex-direction: column;
+}
+.col-right { border-right: none; border-left: 1px solid var(--pico-muted-border-color, #333); }
+.col-center { padding: 0; }
+
+.col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: var(--cc-gap);
+}
+
+.btn-sm {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  margin: 0;
+  width: auto;
+}
+
+/* ---------- LEFT: thread list ---------- */
+.thread-list { list-style: none; margin: 0; padding: 0; }
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.thread-item:hover { background: var(--pico-card-background-color, #1e1e1e); }
+.thread-item.active { background: var(--pico-primary-background, #2a3f5f); }
+.thread-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-item .thread-actions { display: none; gap: 0.15rem; }
+.thread-item:hover .thread-actions,
+.thread-item.active .thread-actions { display: inline-flex; }
+.thread-item .thread-actions button {
+  padding: 0 0.35rem; font-size: 0.75rem; margin: 0; width: auto;
+  background: transparent; border: none; color: var(--cc-muted);
+}
+.thread-item .thread-actions button:hover { color: var(--pico-color, #fff); }
+.rename-input { padding: 0.1rem 0.3rem; font-size: 0.85rem; margin: 0; }
+
+/* ---------- CENTER: transcript ---------- */
+.col-center { display: flex; flex-direction: column; height: 100vh; }
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--cc-gap) 1rem;
+}
+.empty-hint { color: var(--cc-muted); text-align: center; margin-top: 3rem; }
+
+.msg { margin-bottom: 1rem; max-width: 90%; }
+.msg-user { margin-left: auto; text-align: right; }
+.msg-assistant { margin-right: auto; }
+.msg-bubble {
+  display: inline-block;
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.msg-user .msg-bubble { background: var(--pico-primary-background, #2a3f5f); }
+.msg-assistant .msg-bubble { background: var(--pico-card-background-color, #1e1e1e); }
+.msg-role { font-size: 0.7rem; color: var(--cc-muted); margin-bottom: 0.2rem; }
+
+/* chip line under assistant messages */
+.chip-line {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--cc-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.chip {
+  background: var(--pico-card-sectioning-background-color, #262626);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+.chip-note { font-style: italic; opacity: 0.8; }
+
+/* council live roster */
+.roster { margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.roster-item {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.8rem; color: var(--cc-muted);
+}
+.roster-item .state { width: 1rem; text-align: center; }
+.roster-item.ok .state { color: var(--cc-green); }
+.roster-item.fail .state { color: var(--cc-red); }
+.roster-bar {
+  height: 4px; border-radius: 2px; flex: 1;
+  background: var(--pico-card-sectioning-background-color, #262626);
+  overflow: hidden;
+}
+.roster-bar > span {
+  display: block; height: 100%; width: 0;
+  background: var(--cc-amber); transition: width .3s ease;
+}
+.roster-item.ok .roster-bar > span { width: 100%; background: var(--cc-green); }
+.roster-item.fail .roster-bar > span { width: 100%; background: var(--cc-red); }
+.synth-note { font-size: 0.8rem; color: var(--cc-amber); margin-top: 0.3rem; }
+
+/* per-member breakdown */
+.per-member { margin-top: 0.5rem; }
+.per-member summary { font-size: 0.75rem; color: var(--cc-muted); cursor: pointer; }
+.per-member .pm-item { margin: 0.3rem 0; font-size: 0.8rem; }
+.per-member .pm-alias { font-weight: 600; }
+
+/* ---------- Composer ---------- */
+.composer {
+  border-top: 1px solid var(--pico-muted-border-color, #333);
+  padding: var(--cc-gap) 1rem;
+  margin: 0;
+}
+.composer-controls {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem;
+}
+.composer-controls select {
+  width: auto; margin: 0; padding: 0.2rem 1.6rem 0.2rem 0.5rem;
+  font-size: 0.8rem; height: auto;
+}
+.composer-input { display: flex; gap: 0.5rem; align-items: flex-end; }
+.composer-input textarea { margin: 0; flex: 1; resize: vertical; }
+.composer-input button { width: auto; margin: 0; white-space: nowrap; }
+
+/* ---------- RIGHT: status ---------- */
+.status-block { margin-bottom: 1rem; }
+.status-block h6 { margin: 0 0 0.35rem; font-size: 0.8rem; color: var(--cc-muted); }
+
+.dot {
+  display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%;
+  background: var(--cc-muted); flex: 0 0 auto;
+}
+.dot-green { background: var(--cc-green); }
+.dot-red { background: var(--cc-red); }
+.dot-amber { background: var(--cc-amber); }
+.dot-unknown { background: var(--cc-muted); }
+
+.proxy-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; margin-bottom: 0.4rem; }
+.proxy-actions { margin-left: auto; display: inline-flex; gap: 0.25rem; }
+.total-cost { font-size: 0.85rem; color: var(--cc-muted); }
+
+.providers, .usage, .keys-readiness { list-style: none; margin: 0; padding: 0; }
+.providers li {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.82rem; padding: 0.15rem 0;
+}
+.providers .tier { color: var(--cc-muted); font-size: 0.72rem; }
+
+.usage li { font-size: 0.75rem; padding: 0.2rem 0; border-bottom: 1px solid var(--pico-muted-border-color, #2a2a2a); }
+.usage .u-alias { font-weight: 600; }
+.usage .u-exhausted { color: var(--cc-red); }
+.usage .u-stats { color: var(--cc-muted); display: block; }
+
+.keys.status-block > summary { font-size: 0.85rem; cursor: pointer; }
+.keys-form { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.5rem; }
+.keys-form label { font-size: 0.7rem; color: var(--cc-muted); display: flex; flex-direction: column; gap: 0.15rem; }
+.keys-form input { margin: 0; padding: 0.2rem 0.4rem; font-size: 0.8rem; }
+.keys-readiness { margin-top: 0.5rem; }
+.keys-readiness li { font-size: 0.75rem; padding: 0.1rem 0; }
+
+/* ---------- error area ---------- */
+.error-area {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  background: var(--cc-red); color: #fff;
+  padding: 0.5rem 1rem; font-size: 0.85rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.error-area button { width: auto; margin: 0; padding: 0 0.5rem; background: transparent; border: none; color: #fff; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .app-grid { grid-template-columns: 1fr; height: auto; }
+  .col { height: auto; max-height: 45vh; border: none; border-bottom: 1px solid var(--pico-muted-border-color, #333); }
+  .col-center { max-height: none; }
+  .transcript { max-height: 50vh; }
+}
