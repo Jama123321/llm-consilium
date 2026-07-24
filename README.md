@@ -117,6 +117,62 @@ address exposes the council and the key-management UI, so do so only behind trus
 network controls. Secrets stay in `~/.config/consilium/.env` (0600) — never in the
 chat DB or logs.
 
+## Telegram bot
+
+A from-anywhere facade over the free-LLM council — a Telegram bot that runs on your VM
+via **long-polling** (no webhook, no public URL, zero inbound exposure), reachable from
+any device. It keeps multiple switchable conversation sessions per chat, each with its
+own config; runs `ask` / `council` with live council progress; and gates access behind an
+allowlist with owner-approved pairing.
+
+**Setup** — create a bot via **@BotFather**, get the token, then put it plus your numeric
+Telegram user id in `~/.config/consilium/.env`:
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_OWNER_ID=123456789
+```
+
+(Find your id via @userinfobot.) Then:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Prereqs** — provider keys and a running proxy, as for the web UI. Either set them up from
+the CLI (`python -m consilium init` + `python -m consilium service start`) or from the web UI.
+
+**Run:**
+
+```bash
+python -m consilium_tg                                # long-polling; Ctrl-C to stop
+```
+
+**Usage:**
+
+- `/start` — greet and register the chat.
+- Plain text → `ask` / `council` per your `/settings`.
+- `/ask <q>` / `/council <q>` — one-off, ignoring the session tool.
+- `/settings` — per-session inline menu: tool, sensitivity / tier, council mode, **model
+  roster** (☑ / ☐), size, footer — all changeable mid-conversation.
+- `/sessions` — switch / new / rename / delete; `/new` starts a fresh session.
+- Owner only: `/approve <id>`, `/deny <id>`, `/pending`. When a new user messages the bot,
+  the owner gets an inline Approve / Deny prompt.
+
+**Privacy note** — unlike the local web UI, **Telegram is a third party: all prompts and
+answers transit its servers.** The council's privacy gate still governs *which LLMs* see a
+prompt (default `sensitive` → Tier-A only). Access is allowlisted; the bot token stays in
+`~/.config/consilium/.env` (0600) and is never logged.
+
+**Always-on** — the `scripts/consilium-tg.service` systemd `--user` unit keeps the bot
+running. Copy it to `~/.config/systemd/user/`, adjust `WorkingDirectory` if your checkout
+isn't at `~/llm-consilium`, then:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now consilium-tg
+```
+
 ## Architecture
 
 Three layers:
