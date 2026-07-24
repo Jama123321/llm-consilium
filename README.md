@@ -79,6 +79,44 @@ or `"public"` (adds Tier-B). Use `"public"` only for generic / already-published
 **Optional calibration log:** set `CONSILIUM_LOG=1` to append a privacy-safe JSONL record of
 each run to `~/.config/consilium/runs.jsonl` (for tuning routing; off by default).
 
+## Web UI (Consilium Chat)
+
+A local-first browser chat over the free-LLM council. It keeps persistent threads,
+runs `ask` / `council` with mode / sensitivity / model controls, shows live council
+fan-out progress, and carries a sidebar for provider status / limits / cost plus
+in-browser key + proxy control.
+
+**Install:**
+
+```bash
+pip install -r requirements.txt                      # adds fastapi + uvicorn
+```
+
+**Prereqs** — provider keys and a running proxy. Either set them up from the CLI:
+
+```bash
+python -m consilium init                             # enter free keys -> readiness table
+python -m consilium service start                    # start the LiteLLM proxy
+```
+
+…or enter keys and start the proxy from the web UI itself.
+
+**Run:**
+
+```bash
+python -m consilium_chat                              # then open http://127.0.0.1:8080
+```
+
+**Config** — host/port via `--host` / `--port` flags or the `CONSILIUM_CHAT_HOST` /
+`CONSILIUM_CHAT_PORT` env vars (also `CONSILIUM_CHAT_DB`, `CONSILIUM_CHAT_TURNS`,
+`CONSILIUM_CHAT_BUDGET`).
+
+**Security** — it binds `127.0.0.1` by default (local-only). To reach a headless VM,
+prefer an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 vm`); binding to a LAN / public
+address exposes the council and the key-management UI, so do so only behind trusted
+network controls. Secrets stay in `~/.config/consilium/.env` (0600) — never in the
+chat DB or logs.
+
 ## Architecture
 
 Three layers:
