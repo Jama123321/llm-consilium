@@ -42,3 +42,8 @@ def test_errors_subclass_base():
 def test_member_call_error_carries_detail():
     e = MemberCallError("council/x", "429 rate-limited")
     assert e.alias == "council/x" and e.detail == "429 rate-limited"
+
+
+def test_member_cost_per_1k_defaults_zero():
+    m = Member(alias="a", privacy_tier="A", scores={"general": 3}, rpm=5)
+    assert m.cost_per_1k == 0.0

@@ -16,6 +16,7 @@ class Member:
     provider_family: str = ""
     rpd: int | None = None
     tpd: int | None = None
+    cost_per_1k: float = 0.0
 
     @property
     def capabilities(self) -> tuple[str, ...]:

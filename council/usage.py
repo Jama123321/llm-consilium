@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from council.types import Member
@@ -60,6 +60,25 @@ class UsageStore:
             return {}
         return {alias: (req, tok) for alias, req, tok in rows}
 
+    def history(self, days: int = 7, *, end_day: str | None = None) -> list[dict]:
+        end = end_day or today()
+        start = (
+            datetime.strptime(end, "%Y-%m-%d") - timedelta(days=max(days - 1, 0))
+        ).strftime("%Y-%m-%d")
+        try:
+            with closing(self._connect()) as conn:
+                rows = conn.execute(
+                    "SELECT day, alias, requests, tokens FROM usage "
+                    "WHERE day >= ? AND day <= ? ORDER BY day DESC, alias",
+                    (start, end),
+                ).fetchall()
+        except (sqlite3.Error, OSError):
+            return []
+        return [
+            {"day": d, "alias": a, "requests": req, "tokens": tok}
+            for d, a, req, tok in rows
+        ]
+
 
 def _exhausted(m: Member, counts: dict[str, tuple[int, int]]) -> bool:
     req, tok = counts.get(m.alias, (0, 0))
@@ -83,6 +102,7 @@ def summary(members: list[Member], counts: dict[str, tuple[int, int]]) -> list[d
                 "rpd": m.rpd,
                 "tpd": m.tpd,
                 "exhausted": _exhausted(m, counts),
+                "cost_usd": round(tok / 1000 * m.cost_per_1k, 6),
             }
         )
     return rows
