@@ -297,3 +297,11 @@ def test_council_passes_call_timeout_to_fanout(monkeypatch):
     o = Orchestrator(ALL, Recorder(), call_timeout=9.0)
     asyncio.run(o.council("explain the tradeoffs in depth please"))
     assert captured["timeout"] == 9.0
+
+
+def test_council_emits_progress_events():
+    events = []
+    asyncio.run(_orch(Recorder()).council("explain the tradeoffs in depth please",
+                                           on_progress=events.append))
+    kinds = [e["event"] for e in events]
+    assert "roster" in kinds and "member" in kinds and "aggregating" in kinds
