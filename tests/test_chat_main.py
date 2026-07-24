@@ -25,3 +25,23 @@ def test_app_builds_with_guarded_service(tmp_path, monkeypatch):
     app = create_app()
     assert app is not None
     assert TestClient(app).get("/api/status").status_code == 200
+
+
+def test_main_resolves_host_port(monkeypatch, tmp_path):
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import __main__ as m
+
+    captured = {}
+    monkeypatch.setattr(m, "_serve", lambda app, host, port: captured.update(host=host, port=port))
+    m.main(["--host", "0.0.0.0", "--port", "9001"])
+    assert captured == {"host": "0.0.0.0", "port": 9001}
+
+
+def test_main_defaults_from_settings(monkeypatch, tmp_path):
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import __main__ as m
+
+    captured = {}
+    monkeypatch.setattr(m, "_serve", lambda app, host, port: captured.update(host=host, port=port))
+    m.main([])
+    assert captured["host"] == "127.0.0.1" and captured["port"] == 8080
