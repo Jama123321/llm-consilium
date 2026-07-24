@@ -5,7 +5,7 @@ import pytest
 
 from council import aggregate
 from council.errors import AllMembersFailed, MemberCallError
-from council.types import MemberAnswer
+from council.types import AggregateResult, MemberAnswer
 
 
 def _answers(*pairs):
@@ -345,3 +345,38 @@ def test_debate_failed_challenger_keeps_prior_answer():
     asyncio.run(aggregate.aggregate(
         "q", ans, caller=caller, judge_aliases=["chair"], rng=random.Random(0), mode="debate"))
     assert "prioralpha" in captured["judge"]  # m1's prior answer survived into synthesis
+
+
+def test_aggregate_forwards_timeout_to_debate(monkeypatch):
+    captured = {}
+
+    async def fake_debate(prompt, ok_members, *, caller, judge_aliases, rng,
+                          max_rounds=2, threshold=0.7, timeout=30.0):
+        captured["timeout"] = timeout
+        return AggregateResult("x", "debate", "", None, "high")
+
+    monkeypatch.setattr(aggregate, "_debate", fake_debate)
+    ans = _answers(("m1", True, "one long enough answer"), ("m2", True, "two long enough answer"))
+    asyncio.run(
+        aggregate.aggregate(
+            "q", ans, caller=_judge, judge_aliases=["chair"], mode="debate", timeout=7.5
+        )
+    )
+    assert captured["timeout"] == 7.5
+
+
+def test_aggregate_forwards_timeout_to_peer_rank(monkeypatch):
+    captured = {}
+
+    async def fake_peer_rank(prompt, ok_members, *, caller, judge_aliases, rng, timeout=30.0):
+        captured["timeout"] = timeout
+        return AggregateResult("x", "peer-rank", "", None, "high")
+
+    monkeypatch.setattr(aggregate, "_peer_rank", fake_peer_rank)
+    ans = _answers(("m1", True, "one long enough answer"), ("m2", True, "two long enough answer"))
+    asyncio.run(
+        aggregate.aggregate(
+            "q", ans, caller=_judge, judge_aliases=["chair"], mode="peer-rank", timeout=3.0
+        )
+    )
+    assert captured["timeout"] == 3.0

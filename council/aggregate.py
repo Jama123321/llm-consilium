@@ -264,6 +264,7 @@ async def aggregate(
     judge_aliases: list[str],
     rng: random.Random | None = None,
     mode: str | None = None,
+    timeout: float = 30.0,
 ) -> AggregateResult:
     ok_members = [a for a in answers if a.ok and a.answer is not None]
     ok = [a.answer for a in ok_members]
@@ -279,10 +280,12 @@ async def aggregate(
         return await _judge(prompt, ok, caller=caller, judge_aliases=judge_aliases, rng=rng)
     if mode == "peer-rank":
         return await _peer_rank(
-            prompt, ok_members, caller=caller, judge_aliases=judge_aliases, rng=rng
+            prompt, ok_members, caller=caller, judge_aliases=judge_aliases,
+            rng=rng, timeout=timeout,
         )
     if mode == "debate":
         return await _debate(
-            prompt, ok_members, caller=caller, judge_aliases=judge_aliases, rng=rng
+            prompt, ok_members, caller=caller, judge_aliases=judge_aliases,
+            rng=rng, timeout=timeout,
         )
     raise ValueError(f"unknown aggregation mode: {mode}")
