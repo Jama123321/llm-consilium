@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Consilium Chat</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="error-area" class="error-area" hidden aria-live="polite"></div>
+
+  <main class="app-grid">
+    <!-- LEFT: thread list -->
+    <aside class="col col-left" aria-label="Threads">
+      <div class="col-head">
+        <strong>Threads</strong>
+        <button id="new-chat" class="btn-sm" type="button">+ New chat</button>
+      </div>
+      <ul id="thread-list" class="thread-list"></ul>
+    </aside>
+
+    <!-- CENTER: transcript + composer -->
+    <section class="col col-center" aria-label="Conversation">
+      <div id="transcript" class="transcript" aria-live="polite">
+        <p class="empty-hint">Select a thread, or start a new chat, then ask the council.</p>
+      </div>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <div class="composer-controls">
+          <select id="tool" title="Tool" aria-label="Tool">
+            <option value="ask" selected>ask</option>
+            <option value="council">council</option>
+          </select>
+          <select id="mode" title="Mode (council only)" aria-label="Mode">
+            <option value="" selected>auto</option>
+            <option value="vote">vote</option>
+            <option value="judge">judge</option>
+            <option value="debate">debate</option>
+            <option value="peer-rank">peer-rank</option>
+          </select>
+          <select id="sensitivity" title="Sensitivity" aria-label="Sensitivity">
+            <option value="sensitive" selected>sensitive</option>
+            <option value="public">public</option>
+          </select>
+          <select id="model" title="Model" aria-label="Model">
+            <option value="" selected>auto (best-fit)</option>
+          </select>
+          <select id="size" title="Council size (council only)" aria-label="Council size" class="size-select">
+            <option value="" selected>size: auto</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div class="composer-input">
+          <textarea id="input" rows="2" placeholder="Ask the council… (Enter to send, Shift+Enter for newline)"></textarea>
+          <button id="send" type="submit">Send</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- RIGHT: status sidebar -->
+    <aside class="col col-right" aria-label="Status">
+      <div class="col-head">
+        <strong>Status</strong>
+        <button id="refresh-status" class="btn-sm" type="button" title="Refresh now">↻</button>
+      </div>
+
+      <section class="status-block">
+        <div id="proxy-row" class="proxy-row">
+          <span id="proxy-dot" class="dot dot-unknown"></span>
+          <span id="proxy-label">proxy: …</span>
+          <span class="proxy-actions">
+            <button id="proxy-start" class="btn-sm" type="button">Start</button>
+            <button id="proxy-stop" class="btn-sm" type="button">Stop</button>
+          </span>
+        </div>
+        <div id="total-cost" class="total-cost">today: —</div>
+      </section>
+
+      <section class="status-block">
+        <h6>Providers</h6>
+        <ul id="providers" class="providers"></ul>
+      </section>
+
+      <section class="status-block">
+        <h6>Usage</h6>
+        <ul id="usage" class="usage"></ul>
+      </section>
+
+      <details class="status-block keys">
+        <summary>API keys</summary>
+        <form id="keys-form" class="keys-form">
+          <label>CEREBRAS_API_KEY <input type="password" name="CEREBRAS_API_KEY" /></label>
+          <label>GROQ_API_KEY <input type="password" name="GROQ_API_KEY" /></label>
+          <label>CLOUDFLARE_API_TOKEN <input type="password" name="CLOUDFLARE_API_TOKEN" /></label>
+          <label>CLOUDFLARE_API_BASE <input type="password" name="CLOUDFLARE_API_BASE" /></label>
+          <label>GITHUB_API_KEY <input type="password" name="GITHUB_API_KEY" /></label>
+          <label>MISTRAL_API_KEY <input type="password" name="MISTRAL_API_KEY" /></label>
+          <label>SAMBANOVA_API_KEY <input type="password" name="SAMBANOVA_API_KEY" /></label>
+          <label>NVIDIA_NIM_API_KEY <input type="password" name="NVIDIA_NIM_API_KEY" /></label>
+          <label>LITELLM_MASTER_KEY <input type="password" name="LITELLM_MASTER_KEY" /></label>
+          <button type="submit" class="btn-sm">Save</button>
+        </form>
+        <ul id="keys-readiness" class="keys-readiness"></ul>
+      </details>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -106,6 +106,7 @@ class Orchestrator:
     async def council(
         self, prompt: str, *, members: list[str] | None = None,
         size: int | None = None, mode: str | None = None, sensitivity: str = "sensitive",
+        on_progress=None,
     ) -> CouncilResult:
         privacy.scan_secrets(prompt)
         allowed = privacy.allowed_members(self._members, sensitivity)
@@ -136,7 +137,18 @@ class Orchestrator:
         else:
             chosen = await self._auto_roster(prompt, allowed, pool, size, notes)
 
-        answers = await fanout.fan_out(prompt, chosen, self._caller, timeout=self._call_timeout)
+        if on_progress is not None:
+            on_progress({"event": "roster", "members": [m.alias for m in chosen]})
+        on_member = (
+            (lambda alias, ok: on_progress({"event": "member", "alias": alias, "ok": ok}))
+            if on_progress is not None else None
+        )
+        answers = await fanout.fan_out(
+            prompt, chosen, self._caller, timeout=self._call_timeout,
+            **({"on_member": on_member} if on_progress is not None else {}),
+        )
+        if on_progress is not None:
+            on_progress({"event": "aggregating"})
         result = await agg.aggregate(
             prompt, answers, caller=self._caller,
             judge_aliases=self._judge_order(chosen), mode=mode, timeout=self._call_timeout,
