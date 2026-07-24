@@ -144,3 +144,56 @@ def test_stream_error_mapped(tmp_path):
     # no assistant row persisted on error
     msgs = c.get(f"/api/threads/{tid}").json()
     assert [m["role"] for m in msgs] == ["user"]
+
+
+def test_stream_coerces_size_to_int(tmp_path):
+    seen = {}
+
+    class SizeStream:
+        async def council(self, prompt, *, members=None, size=None, mode=None,
+                          sensitivity="sensitive", on_progress=None):
+            seen["type"] = type(size)
+            seen["value"] = size
+            return CouncilResult(answer="FINAL", per_member=[MemberAnswer("x", True, "xa", "ok")],
+                                 disagreements="none", judge_used="j", mode="judge",
+                                 note="", confidence="med")
+
+    c = _client(tmp_path, service=SizeStream())
+    tid = c.post("/api/threads", json={}).json()["id"]
+    body = c.get(f"/api/threads/{tid}/stream?content=hi&sensitivity=sensitive&size=3").text
+    assert seen["type"] is int and seen["value"] == 3
+    assert "FINAL" in body
+
+
+def test_post_council_coerces_size_to_int(tmp_path):
+    seen = {}
+
+    class SizeService:
+        async def council(self, prompt, *, members=None, size=None, mode=None,
+                          sensitivity="sensitive", on_progress=None):
+            seen["type"] = type(size)
+            seen["value"] = size
+            return CouncilResult(answer="A", per_member=[MemberAnswer("x", True, "xa", "ok")],
+                                 disagreements="none", judge_used="j", mode="judge",
+                                 note="", confidence="high")
+
+    c = _client(tmp_path, service=SizeService())
+    tid = c.post("/api/threads", json={}).json()["id"]
+    c.post(f"/api/threads/{tid}/messages",
+           json={"content": "x", "tool": "council", "sensitivity": "sensitive", "size": "4"})
+    assert seen["type"] is int and seen["value"] == 4
+
+
+def test_stream_non_service_error_emits_error_frame(tmp_path):
+    class BoomStream:
+        async def council(self, prompt, **kw):
+            raise ValueError("boom")
+
+    c = _client(tmp_path, service=BoomStream())
+    tid = c.post("/api/threads", json={}).json()["id"]
+    r = c.get(f"/api/threads/{tid}/stream?content=hi&sensitivity=sensitive")
+    assert r.status_code == 200
+    assert '"event": "error"' in r.text
+    # no assistant row persisted on error
+    msgs = c.get(f"/api/threads/{tid}").json()
+    assert [m["role"] for m in msgs] == ["user"]

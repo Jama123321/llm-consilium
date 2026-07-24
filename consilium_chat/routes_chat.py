@@ -9,6 +9,7 @@ envelopes rather than 500s, so the frontend can render them inline in the thread
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 
 from fastapi import APIRouter, Request
@@ -19,6 +20,14 @@ from council.errors import AllMembersFailed, NoEligibleMember, PrivacyRefusal
 _SERVICE_ERRORS = (NoEligibleMember, AllMembersFailed, PrivacyRefusal)
 _DEFAULT_TITLE = "New chat"
 _TITLE_CHARS = 40
+
+
+def _coerce_size(raw):
+    """Coerce a raw ``size`` (string from JSON/query) to ``int`` or ``None``."""
+    try:
+        return int(raw) if raw not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _council_meta(res) -> dict:
@@ -118,16 +127,18 @@ def chat_router() -> APIRouter:
                     "capability": res.capability,
                     "note": res.note,
                 }
+                meta["sensitivity"] = sensitivity
             else:
                 res = await service.council(
                     prompt,
                     members=None,
-                    size=body.get("size"),
-                    mode=body.get("mode"),
+                    size=_coerce_size(body.get("size")),
+                    mode=body.get("mode") or None,
                     sensitivity=sensitivity,
                 )
                 answer = res.answer
                 meta = _council_meta(res)
+                meta["sensitivity"] = sensitivity
         except _SERVICE_ERRORS as exc:
             return {"event": "error", "error": str(exc), "note": ""}
 
@@ -149,8 +160,8 @@ def chat_router() -> APIRouter:
 
         content = qp.get("content", "")
         sensitivity = qp.get("sensitivity") or "sensitive"
-        mode = qp.get("mode")
-        size = qp.get("size")
+        mode = qp.get("mode") or None
+        size = _coerce_size(qp.get("size"))
 
         store.add_message(thread_id, "user", content, {})
         _maybe_autotitle(store, thread_id, content)
@@ -173,10 +184,16 @@ def chat_router() -> APIRouter:
                         on_progress=on_progress,
                     )
                     meta = _council_meta(res)
+                    meta["sensitivity"] = sensitivity
                     q.put_nowait({"event": "final", "content": res.answer, **meta})
                     store.add_message(thread_id, "assistant", res.answer, meta)
                 except _SERVICE_ERRORS as exc:
                     q.put_nowait({"event": "error", "error": str(exc), "note": ""})
+                except Exception as exc:  # noqa: BLE001 — never leak a raw 500 into the SSE stream
+                    q.put_nowait(
+                        {"event": "error", "error": f"internal error: {exc.__class__.__name__}",
+                         "note": ""}
+                    )
                 finally:
                     q.put_nowait(None)
 
@@ -188,7 +205,10 @@ def chat_router() -> APIRouter:
                         break
                     yield f"data: {json.dumps(evt)}\n\n"
             finally:
-                await task
+                if not task.done():
+                    task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
