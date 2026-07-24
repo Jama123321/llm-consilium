@@ -26,3 +26,7 @@ litellm_uuid.txt
 .DS_Store
 .idea/
 .vscode/
+
+# Internal dev process/research docs — kept local, excluded from the public repo
+docs/superpowers/
+docs/research/
