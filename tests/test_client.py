@@ -206,3 +206,16 @@ def test_recorder_receives_total_tokens():
         )
     )
     assert seen == [("council/a", 42)]
+
+
+def test_non_numeric_total_tokens_degrades_to_zero():
+    seen = []
+    body = {"choices": [{"message": {"content": "ok"}}], "usage": {"total_tokens": "abc"}}
+    out = asyncio.run(
+        client.complete(
+            "http://x/v1", "k", "council/a", "hi",
+            transport=_transport(200, body),
+            recorder=lambda a, t: seen.append((a, t)),
+        )
+    )
+    assert out == "ok" and seen == [("council/a", 0)]  # bad token count -> 0, no crash

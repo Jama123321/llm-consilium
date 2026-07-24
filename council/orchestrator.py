@@ -136,7 +136,7 @@ class Orchestrator:
         else:
             chosen = await self._auto_roster(prompt, allowed, pool, size, notes)
 
-        answers = await fanout.fan_out(prompt, chosen, self._caller)
+        answers = await fanout.fan_out(prompt, chosen, self._caller, timeout=self._call_timeout)
         result = await agg.aggregate(
             prompt, answers, caller=self._caller,
             judge_aliases=self._judge_order(chosen), mode=mode, timeout=self._call_timeout,

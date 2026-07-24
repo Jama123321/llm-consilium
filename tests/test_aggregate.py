@@ -380,3 +380,24 @@ def test_aggregate_forwards_timeout_to_peer_rank(monkeypatch):
         )
     )
     assert captured["timeout"] == 3.0
+
+
+def test_peer_rank_timeout_cancels_slow_ranker():
+    import asyncio as _asyncio
+    finished = []
+
+    async def slow(alias, prompt):
+        if "RANKING:" in prompt:
+            await _asyncio.sleep(0.15)
+            finished.append(alias)  # only reached if the call was NOT cancelled
+            return "RANKING: whatever"
+        return "Merged.\nDISAGREEMENTS: none\nCONFIDENCE: low"  # judge fallback
+
+    ans = _answers(("m1", True, "first distinct answer here"),
+                   ("m2", True, "second distinct answer here"))
+    asyncio.run(
+        aggregate.aggregate(
+            "q", ans, caller=slow, judge_aliases=["chair"], mode="peer-rank", timeout=0.01
+        )
+    )
+    assert finished == []  # both slow rankers cancelled by the tight timeout before finishing

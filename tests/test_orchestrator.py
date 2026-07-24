@@ -276,3 +276,24 @@ def test_council_logs_run_to_runlog(tmp_path):
     assert entry["redacted"] is False
     assert entry["prompt"] == "explain the tradeoffs in depth please"
     assert entry["answer"] is not None
+
+
+def test_council_passes_call_timeout_to_fanout(monkeypatch):
+    from council import aggregate as agg_mod
+    from council import fanout as fanout_mod
+    from council.types import AggregateResult, MemberAnswer
+    captured = {}
+
+    async def fake_fan_out(prompt, members, caller, *, timeout=30.0):
+        captured["timeout"] = timeout
+        return [MemberAnswer(m.alias, True, "answer", "ok") for m in members]
+
+    async def fake_aggregate(prompt, answers, *, caller, judge_aliases, rng=None,
+                             mode=None, timeout=30.0):
+        return AggregateResult("x", "judge", "", "chair", "high")
+
+    monkeypatch.setattr(fanout_mod, "fan_out", fake_fan_out)
+    monkeypatch.setattr(agg_mod, "aggregate", fake_aggregate)
+    o = Orchestrator(ALL, Recorder(), call_timeout=9.0)
+    asyncio.run(o.council("explain the tradeoffs in depth please"))
+    assert captured["timeout"] == 9.0

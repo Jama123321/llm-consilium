@@ -99,7 +99,10 @@ def _extract(alias: str, data: object, recorder: Callable[[str, int], None] | No
 def _token_count(data: object) -> int:
     usage = data.get("usage") if isinstance(data, dict) else None
     if isinstance(usage, dict):
-        return int(usage.get("total_tokens") or 0)
+        try:
+            return int(usage.get("total_tokens") or 0)
+        except (TypeError, ValueError):
+            return 0
     return 0
 
 
