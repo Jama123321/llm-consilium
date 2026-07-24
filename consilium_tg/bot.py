@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from telegram.ext import Application
@@ -18,11 +19,17 @@ def _build_service():
 
         return CouncilService.build()
     except Exception:  # noqa: BLE001 - a missing proxy/key must not block app creation
+        _log.warning("council service unavailable at startup", exc_info=True)
         return None
 
 
 async def _on_error(update, context) -> None:  # pragma: no cover - PTB error hook
     _log.error("handler error", exc_info=context.error)
+    with contextlib.suppress(Exception):
+        if getattr(update, "callback_query", None) is not None:
+            await update.callback_query.answer("Something went wrong.")
+        elif getattr(update, "effective_message", None) is not None:
+            await update.effective_message.reply_text("⚠️ Something went wrong.")
 
 
 def build_application(*, settings=None, service=None, store=None, access=None):
