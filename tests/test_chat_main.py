@@ -16,6 +16,21 @@ def test_app_serves_index_and_status(tmp_path, monkeypatch):
     assert "providers" in body and "proxy_up" in body and "total_cost_usd" in body
 
 
+def test_app_builds_when_council_service_raises(tmp_path, monkeypatch):
+    # The guard in create_app must degrade to service=None (not raise) when
+    # CouncilService.build() fails — the first-run/unconfigured path this feature targets.
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import app as appmod
+
+    def _boom():
+        raise RuntimeError("no proxy yet")
+
+    monkeypatch.setattr(appmod.CouncilService, "build", staticmethod(_boom))
+    app = appmod.create_app()  # no service= → exercises the try/except
+    assert app is not None
+    assert TestClient(app).get("/api/status").status_code == 200
+
+
 def _patch_main(m, monkeypatch, *, loaded):
     served, opens = {}, []
     monkeypatch.setattr(m, "_serve", lambda app, host, port: served.update(host=host, port=port))

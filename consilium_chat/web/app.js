@@ -469,6 +469,8 @@ function renderSettings(status) {
         .map((v) => `<label class="key-row">${v}<input type="password" name="${v}" autocomplete="off" /></label>`)
         .join("");
       const hint = p.signup ? `<small class="signup">${p.signup}</small>` : "";
+      // Safe: p.name/p.tier/p.env_vars/p.signup come from the trusted server-side
+      // provider registry (consilium/providers.py), not user input — no XSS via innerHTML.
       box.insertAdjacentHTML(
         "beforeend",
         `<div class="provider-block"><div class="provider-head"><span>${p.name}</span><span class="rd">${badge}</span></div>${inputs}${hint}</div>`,
