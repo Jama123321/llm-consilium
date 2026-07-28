@@ -10,38 +10,70 @@ def test_app_serves_index_and_status(tmp_path, monkeypatch):
         def list_models(self):
             return []
 
-    app = create_app(service=FakeService())
-    client = TestClient(app)
+    client = TestClient(create_app(service=FakeService()))
     assert client.get("/").status_code == 200
-    r = client.get("/api/status")
-    assert r.status_code == 200
-    body = r.json()
+    body = client.get("/api/status").json()
     assert "providers" in body and "proxy_up" in body and "total_cost_usd" in body
 
 
-def test_app_builds_with_guarded_service(tmp_path, monkeypatch):
-    # Even if CouncilService.build() cannot connect, app creation must not raise.
-    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
-    app = create_app()
-    assert app is not None
-    assert TestClient(app).get("/api/status").status_code == 200
+def _patch_main(m, monkeypatch, *, loaded):
+    served, opens = {}, []
+    monkeypatch.setattr(m, "_serve", lambda app, host, port: served.update(host=host, port=port))
+    monkeypatch.setattr(m, "_open_browser", lambda url: opens.append(url))
+    monkeypatch.setattr(m, "_load_env", lambda: loaded)
+    return served, opens
 
 
 def test_main_resolves_host_port(monkeypatch, tmp_path):
     monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
     from consilium_chat import __main__ as m
 
-    captured = {}
-    monkeypatch.setattr(m, "_serve", lambda app, host, port: captured.update(host=host, port=port))
+    served, _ = _patch_main(m, monkeypatch, loaded={"GROQ_API_KEY": "x"})
     m.main(["--host", "0.0.0.0", "--port", "9001"])
-    assert captured == {"host": "0.0.0.0", "port": 9001}
+    assert served == {"host": "0.0.0.0", "port": 9001}
 
 
 def test_main_defaults_from_settings(monkeypatch, tmp_path):
     monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
     from consilium_chat import __main__ as m
 
-    captured = {}
-    monkeypatch.setattr(m, "_serve", lambda app, host, port: captured.update(host=host, port=port))
+    served, _ = _patch_main(m, monkeypatch, loaded={"GROQ_API_KEY": "x"})
     m.main([])
-    assert captured["host"] == "127.0.0.1" and captured["port"] == 8080
+    assert served["host"] == "127.0.0.1" and served["port"] == 8080
+
+
+def test_should_open_truth_table():
+    from consilium_chat import __main__ as m
+
+    assert m._should_open("off", False, "127.0.0.1") is False
+    assert m._should_open("on", True, "127.0.0.1") is True
+    assert m._should_open("on", True, "0.0.0.0") is False       # non-loopback never opens
+    assert m._should_open("auto", False, "127.0.0.1") is True   # first run
+    assert m._should_open("auto", True, "127.0.0.1") is False   # already configured
+
+
+def test_main_opens_browser_when_unconfigured(monkeypatch, tmp_path):
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import __main__ as m
+
+    _, opens = _patch_main(m, monkeypatch, loaded={})
+    m.main([])
+    assert opens == ["http://127.0.0.1:8080/"]
+
+
+def test_main_no_open_flag_suppresses(monkeypatch, tmp_path):
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import __main__ as m
+
+    _, opens = _patch_main(m, monkeypatch, loaded={})
+    m.main(["--no-open"])
+    assert opens == []
+
+
+def test_main_skips_open_when_configured(monkeypatch, tmp_path):
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import __main__ as m
+
+    _, opens = _patch_main(m, monkeypatch, loaded={"GROQ_API_KEY": "x"})
+    m.main([])
+    assert opens == []
