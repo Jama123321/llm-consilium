@@ -165,12 +165,15 @@ prompt (default `sensitive` → Tier-A only). Access is allowlisted; the bot tok
 `~/.config/consilium/.env` (0600) and is never logged.
 
 **Always-on** — the `scripts/consilium-tg.service` systemd `--user` unit keeps the bot
-running. Copy it to `~/.config/systemd/user/`, adjust `WorkingDirectory` if your checkout
-isn't at `~/llm-consilium`, then:
+running and restarts it on failure. It uses absolute paths to this checkout
+(`/opt/claude-projects/llm-consilium`) and is ordered after `consilium-proxy.service`; edit
+`WorkingDirectory`/`ExecStart` if your checkout lives elsewhere. Copy it to
+`~/.config/systemd/user/`, then:
 
 ```bash
 systemctl --user daemon-reload
 systemctl --user enable --now consilium-tg
+loginctl enable-linger "$USER"   # start at boot without an active login
 ```
 
 ## Architecture
