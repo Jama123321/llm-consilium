@@ -10,7 +10,15 @@
 <body>
   <div id="error-area" class="error-area" hidden aria-live="polite"></div>
 
-  <main class="app-grid">
+  <header class="topbar">
+    <strong class="brand">Consilium</strong>
+    <nav class="viewnav">
+      <button id="nav-chat" class="btn-sm active" type="button">Chat</button>
+      <button id="nav-settings" class="btn-sm" type="button">⚙ Settings</button>
+    </nav>
+  </header>
+
+  <main id="chat-view" class="app-grid">
     <!-- LEFT: thread list -->
     <aside class="col col-left" aria-label="Threads">
       <div class="col-head">
@@ -71,10 +79,6 @@
         <div id="proxy-row" class="proxy-row">
           <span id="proxy-dot" class="dot dot-unknown"></span>
           <span id="proxy-label">proxy: …</span>
-          <span class="proxy-actions">
-            <button id="proxy-start" class="btn-sm" type="button">Start</button>
-            <button id="proxy-stop" class="btn-sm" type="button">Stop</button>
-          </span>
         </div>
         <div id="total-cost" class="total-cost">today: —</div>
       </section>
@@ -89,24 +93,29 @@
         <ul id="usage" class="usage"></ul>
       </section>
 
-      <details class="status-block keys">
-        <summary>API keys</summary>
-        <form id="keys-form" class="keys-form">
-          <label>CEREBRAS_API_KEY <input type="password" name="CEREBRAS_API_KEY" /></label>
-          <label>GROQ_API_KEY <input type="password" name="GROQ_API_KEY" /></label>
-          <label>CLOUDFLARE_API_TOKEN <input type="password" name="CLOUDFLARE_API_TOKEN" /></label>
-          <label>CLOUDFLARE_API_BASE <input type="password" name="CLOUDFLARE_API_BASE" /></label>
-          <label>GITHUB_API_KEY <input type="password" name="GITHUB_API_KEY" /></label>
-          <label>MISTRAL_API_KEY <input type="password" name="MISTRAL_API_KEY" /></label>
-          <label>SAMBANOVA_API_KEY <input type="password" name="SAMBANOVA_API_KEY" /></label>
-          <label>NVIDIA_NIM_API_KEY <input type="password" name="NVIDIA_NIM_API_KEY" /></label>
-          <label>LITELLM_MASTER_KEY <input type="password" name="LITELLM_MASTER_KEY" /></label>
-          <button type="submit" class="btn-sm">Save</button>
-        </form>
-        <ul id="keys-readiness" class="keys-readiness"></ul>
-      </details>
     </aside>
   </main>
+
+  <section id="settings-view" class="settings-view" hidden aria-label="Settings">
+    <h2>Settings</h2>
+    <p class="settings-hint">Paste your provider API keys, Save, then Start/Restart the proxy.
+      Keys are stored locally in <code>~/.config/consilium/.env</code> and never leave this machine.</p>
+    <form id="keys-form" class="keys-form">
+      <div id="keys-tier-a"></div>
+      <div id="keys-tier-b"></div>
+      <label class="key-row">LITELLM_MASTER_KEY
+        <input type="password" name="LITELLM_MASTER_KEY" autocomplete="off" />
+      </label>
+      <button type="submit" class="btn-sm">Save keys</button>
+    </form>
+    <ul id="keys-readiness" class="keys-readiness"></ul>
+    <div class="proxy-controls">
+      <span id="set-proxy-dot" class="dot dot-unknown"></span>
+      <span id="set-proxy-label">proxy: …</span>
+      <button id="proxy-start" class="btn-sm" type="button">Start</button>
+      <button id="proxy-restart" class="btn-sm" type="button">Restart</button>
+    </div>
+  </section>
 
   <script src="app.js"></script>
 </body>
