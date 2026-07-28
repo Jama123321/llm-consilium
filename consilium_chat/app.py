@@ -27,6 +27,14 @@ from council import orchestrator, registry, usage
 _WEB_DIR = Path(__file__).parent / "web"
 
 
+def is_configured(loaded: dict) -> bool:
+    """True iff at least one provider has all of its env vars present."""
+    return any(
+        all(loaded.get(v) for v in p.env_vars)
+        for p in providers.PROVIDERS
+    )
+
+
 def _make_status_provider():
     """Build the ``/api/status`` payload from live provider / proxy / usage state."""
 
@@ -38,6 +46,8 @@ def _make_status_provider():
                     "name": p.name,
                     "tier": p.tier,
                     "ready": all(loaded.get(v) for v in p.env_vars),
+                    "env_vars": list(p.env_vars),
+                    "signup": p.signup,
                 }
                 for p in providers.PROVIDERS
             ]
@@ -48,6 +58,7 @@ def _make_status_provider():
             )
             rows = usage.summary(members, usage.UsageStore().counts())
             return {
+                "configured": is_configured(loaded),
                 "providers": provider_rows,
                 "proxy_up": proxy_up,
                 "usage": rows,
@@ -58,6 +69,7 @@ def _make_status_provider():
         except Exception:
             # Never 500 on status: degrade to a minimal but valid payload.
             return {
+                "configured": False,
                 "providers": [],
                 "proxy_up": False,
                 "usage": [],
