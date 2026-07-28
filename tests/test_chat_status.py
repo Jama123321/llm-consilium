@@ -25,3 +25,17 @@ def test_status_has_configured_and_provider_metadata(tmp_path, monkeypatch):
     row = body["providers"][0]
     assert "env_vars" in row and isinstance(row["env_vars"], list)
     assert "signup" in row
+
+
+def test_proxy_restart_stops_then_starts(monkeypatch, tmp_path):
+    monkeypatch.setenv("CONSILIUM_CHAT_DB", str(tmp_path / "c.db"))
+    from consilium_chat import app as appmod
+
+    calls = []
+    monkeypatch.setattr(appmod.proxy_service, "stop", lambda: calls.append("stop"))
+    monkeypatch.setattr(appmod.proxy_service, "start", lambda: calls.append("start"))
+    monkeypatch.setattr(appmod.proxy_service, "port_open", lambda h, p: True)
+
+    out = create_app(service=object()).state.proxy_restart()
+    assert calls == ["stop", "start"]
+    assert out == {"ok": True, "proxy_up": True}

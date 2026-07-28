@@ -41,4 +41,8 @@ def admin_router() -> APIRouter:
     async def proxy_stop(request: Request):
         return request.app.state.proxy_stop()
 
+    @router.post("/api/proxy/restart")
+    async def proxy_restart(request: Request):
+        return request.app.state.proxy_restart()
+
     return router

@@ -137,6 +137,21 @@ def _make_proxy_stop():
     return proxy_stop
 
 
+def _make_proxy_restart():
+    def proxy_restart() -> dict:
+        try:
+            proxy_service.stop()
+            proxy_service.start()
+            return {
+                "ok": True,
+                "proxy_up": proxy_service.port_open(paths.PROXY_HOST, paths.PROXY_PORT),
+            }
+        except Exception as exc:  # noqa: BLE001 - surfaced to the client as an error
+            return {"ok": False, "error": str(exc)}
+
+    return proxy_restart
+
+
 def create_app(*, settings=None, store=None, service=None) -> FastAPI:
     """Build and wire the chat FastAPI app.
 
@@ -163,6 +178,7 @@ def create_app(*, settings=None, store=None, service=None) -> FastAPI:
     app.state.save_keys = _make_save_keys()
     app.state.proxy_start = _make_proxy_start()
     app.state.proxy_stop = _make_proxy_stop()
+    app.state.proxy_restart = _make_proxy_restart()
 
     # API routers first so /api/* wins over the static catch-all mounted at "/".
     app.include_router(chat_router())
