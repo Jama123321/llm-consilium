@@ -1,5 +1,9 @@
 # LLM Consilium
 
+[![CI](https://github.com/Jama123321/llm-consilium/actions/workflows/ci.yml/badge.svg)](https://github.com/Jama123321/llm-consilium/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+
 **A privacy-tiered council of *free* cloud LLMs, on tap inside Claude Code.**
 Private code never reaches a provider that trains on it.
 
