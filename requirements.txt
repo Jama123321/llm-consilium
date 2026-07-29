@@ -1,10 +1,2 @@
-# Consilium Phase 0 — pinned dependency set (bounded ranges: installable + stable).
-litellm[proxy]>=1.50,<2
-httpx>=0.27,<1
-pyyaml>=6,<7
-pytest>=8,<9
-ruff>=0.6
-mcp>=1.0
-fastapi>=0.110,<1
-uvicorn[standard]>=0.29,<1
-python-telegram-bot>=21,<22
+# Dependencies are declared in pyproject.toml. Install the project (with dev tools) via:
+-e .[dev]

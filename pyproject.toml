@@ -1,9 +1,61 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-consilium"
+version = "0.1.0"
+description = "A VM-wide council of free cloud LLMs with privacy-safe routing, for second opinions and cross-checks."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Jama123321" }]
+keywords = ["llm", "council", "mcp", "litellm", "privacy", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "litellm[proxy]>=1.50,<2",
+    "httpx>=0.27,<1",
+    "pyyaml>=6,<7",
+    "mcp>=1.0",
+    "fastapi>=0.110,<1",
+    "uvicorn[standard]>=0.29,<1",
+    "python-telegram-bot>=21,<22",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "ruff>=0.6", "mypy", "pip-audit", "build"]
+
+[project.urls]
+Homepage = "https://github.com/Jama123321/llm-consilium"
+Repository = "https://github.com/Jama123321/llm-consilium"
+Issues = "https://github.com/Jama123321/llm-consilium/issues"
+
+[project.scripts]
+consilium = "consilium.__main__:main"
+consilium-chat = "consilium_chat.__main__:main"
+consilium-tg = "consilium_tg.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["consilium*", "council*"]
+namespaces = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["council", "consilium", "consilium_chat", "consilium_tg", "consilium_mcp", "healthcheck"]

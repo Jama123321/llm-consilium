@@ -175,7 +175,8 @@ class BotStore:
         try:
             with closing(self._connect()) as c, c:
                 c.execute(
-                    f"UPDATE session_settings SET {key}=? WHERE session_id=?",
+                    # noqa justified: key is validated against the _SETTABLE allowlist above
+                    f"UPDATE session_settings SET {key}=? WHERE session_id=?",  # noqa: S608
                     (value, session_id),
                 )
         except (sqlite3.Error, OSError):

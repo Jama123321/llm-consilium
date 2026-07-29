@@ -48,7 +48,7 @@ async def _main() -> int:
                           sensitivity="sensitive")
     contacted_b = [a.alias for a in sen.per_member if tier.get(a.alias) == "B"]
     print(f"[sensitive council] note={sen.note} tier-B contacted={contacted_b}")
-    assert not contacted_b, f"PRIVACY LEAK: Tier-B contacted on sensitive: {contacted_b}"
+    assert not contacted_b, f"PRIVACY LEAK: Tier-B contacted on sensitive: {contacted_b}"  # noqa: S101 - smoke-test privacy check
     print("[tier isolation] OK — no Tier-B on sensitive")
     return 0
 
