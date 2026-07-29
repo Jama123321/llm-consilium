@@ -53,6 +53,12 @@ def test_proxy_stop():
     assert r.status_code == 200 and r.json() == {"ok": True, "stopped": True}
 
 
+def test_proxy_restart():
+    app = _app({"proxy_restart": lambda: {"ok": True, "proxy_up": True}})
+    r = TestClient(app).post("/api/proxy/restart")
+    assert r.status_code == 200 and r.json() == {"ok": True, "proxy_up": True}
+
+
 def test_models_returns_service_list():
     class FakeService:
         def list_models(self):

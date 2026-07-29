@@ -442,6 +442,51 @@ async function loadModels() {
   }
 }
 
+/* ---------------- view routing ---------------- */
+function showView(name) {
+  const isSettings = name === "settings";
+  const chat = $("chat-view"), settings = $("settings-view");
+  if (chat) chat.hidden = isSettings;
+  if (settings) settings.hidden = !isSettings;
+  $("nav-chat")?.classList.toggle("active", !isSettings);
+  $("nav-settings")?.classList.toggle("active", isSettings);
+}
+
+/* ---------------- settings render (from registry via /api/status) ---------------- */
+function renderSettings(status) {
+  const provs = Array.isArray(status.providers) ? status.providers : [];
+  const heads = {
+    A: ["keys-tier-a", "Tier A — safe for any prompt"],
+    B: ["keys-tier-b", "Tier B — public prompts only"],
+  };
+  for (const [tier, [id, title]] of Object.entries(heads)) {
+    const box = $(id);
+    if (!box) continue;
+    box.innerHTML = `<h6>${title}</h6>`;
+    for (const p of provs.filter((x) => x.tier === tier)) {
+      const badge = p.ready ? "✓ ready" : "✗ not set";
+      const inputs = (p.env_vars || [])
+        .map((v) => `<label class="key-row">${v}<input type="password" name="${v}" autocomplete="off" /></label>`)
+        .join("");
+      const hint = p.signup ? `<small class="signup">${p.signup}</small>` : "";
+      // Safe: p.name/p.tier/p.env_vars/p.signup come from the trusted server-side
+      // provider registry (consilium/providers.py), not user input — no XSS via innerHTML.
+      box.insertAdjacentHTML(
+        "beforeend",
+        `<div class="provider-block"><div class="provider-head"><span>${p.name}</span><span class="rd">${badge}</span></div>${inputs}${hint}</div>`,
+      );
+    }
+  }
+}
+
+function setSettingsProxy(status) {
+  const dot = $("set-proxy-dot"), lbl = $("set-proxy-label");
+  if (!dot || !lbl) return;
+  const up = !!status.proxy_up;
+  dot.className = "dot " + (up ? "dot-green" : "dot-red");
+  lbl.textContent = "proxy: " + (up ? "up" : "down");
+}
+
 /* ---------------- status sidebar (RIGHT) ---------------- */
 
 let statusTimer = null;
@@ -460,6 +505,12 @@ async function refreshStatus() {
   const cost = fmtCost(s.total_cost_usd);
   const tc = $("total-cost");
   if (tc) tc.textContent = "today: " + (cost || "$0.000");
+  renderSettings(s);
+  setSettingsProxy(s);
+  if (!window.__bootedView) {
+    window.__bootedView = true;
+    showView(s.configured ? "chat" : "settings");
+  }
 }
 
 function setProxyDot(kind, label) {
@@ -620,8 +671,10 @@ function wireUp() {
   syncCouncilControls();
 
   $("refresh-status")?.addEventListener("click", refreshStatus);
+  $("nav-chat")?.addEventListener("click", () => showView("chat"));
+  $("nav-settings")?.addEventListener("click", () => showView("settings"));
   $("proxy-start")?.addEventListener("click", () => proxyControl("start"));
-  $("proxy-stop")?.addEventListener("click", () => proxyControl("stop"));
+  $("proxy-restart")?.addEventListener("click", () => proxyControl("restart"));
   $("keys-form")?.addEventListener("submit", onSaveKeys);
 }
 
