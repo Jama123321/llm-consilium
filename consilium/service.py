@@ -40,7 +40,10 @@ def _is_alive(pid: int) -> bool:
         except OSError:
             return False
         return True
-    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True)
+    out = subprocess.run(  # noqa: S603 - fixed Windows liveness probe, no user input
+        # noqa reason: "tasklist" is a trusted system utility on Windows
+        ["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True  # noqa: S607
+    )
     return str(pid) in out.stdout
 
 
@@ -56,11 +59,14 @@ def _terminate(pid: int) -> None:
     if os.name == "posix":
         os.kill(pid, signal.SIGTERM)
     else:
-        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
+        subprocess.run(  # noqa: S603 - fixed Windows terminate command, no user input
+            # noqa reason: "taskkill" is a trusted system utility on Windows
+            ["taskkill", "/PID", str(pid), "/F"], capture_output=True  # noqa: S607
+        )
 
 
 def _exec(cmd: list[str], env: dict[str, str]) -> int:  # pragma: no cover - replaces the process
-    os.execvpe(cmd[0], cmd, env)
+    os.execvpe(cmd[0], cmd, env)  # noqa: S606 - intentional proxy launch; cmd built internally
     return 0
 
 

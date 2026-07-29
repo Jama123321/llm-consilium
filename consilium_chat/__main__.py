@@ -33,7 +33,7 @@ def _open_browser(url: str, delay: float = 1.0) -> None:
     def go() -> None:
         try:
             webbrowser.open(url)
-        except Exception:  # noqa: BLE001 - best-effort; headless boxes have no browser
+        except Exception:  # noqa: BLE001, S110 - best-effort; headless boxes have no browser
             pass
 
     threading.Timer(delay, go).start()

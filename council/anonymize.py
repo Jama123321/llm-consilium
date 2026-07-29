@@ -17,7 +17,7 @@ def anonymize_pairs(
         raise ValueError(
             f"too many answers to anonymize: {len(pairs)} > {len(CODE_NAMES)}"
         )
-    r = rng or random.Random()
+    r = rng or random.Random()  # noqa: S311 - cosmetic shuffle of aliases, not cryptographic
     shuffled = list(pairs)
     r.shuffle(shuffled)
     names = list(CODE_NAMES[: len(shuffled)])

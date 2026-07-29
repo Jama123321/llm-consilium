@@ -1,0 +1,5 @@
+include proxy/config.yaml
+include proxy/README.md
+include LICENSE
+include README.md
+include CHANGELOG.md
